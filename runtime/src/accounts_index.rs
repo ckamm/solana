@@ -685,7 +685,7 @@ impl<T: 'static + Clone + IsCached + ZeroLamport> AccountsIndex<T> {
     {
         // Pass "" not to log metrics, so RPC doesn't get spammy
         self.do_checked_scan_accounts(
-            "",
+            "accounts_index-scan_accounts",
             ancestors,
             func,
             ScanTypes::Unindexed(None::<Range<Pubkey>>),
