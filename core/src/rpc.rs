@@ -42,6 +42,7 @@ use solana_ledger::{
     blockstore::Blockstore, blockstore_db::BlockstoreError, get_tmp_ledger_path,
     leader_schedule_cache::LeaderScheduleCache,
 };
+use solana_measure::measure::Measure;
 use solana_metrics::inc_new_counter_info;
 use solana_perf::packet::PACKET_DATA_SIZE;
 use solana_runtime::{
@@ -359,11 +360,15 @@ impl JsonRpcRequestProcessor {
         filters: Vec<RpcFilterType>,
         with_context: bool,
     ) -> Result<OptionalContext<Vec<RpcKeyedAccount>>> {
+        let mut start_timer = Measure::start("start");
         let config = config.unwrap_or_default();
         let bank = self.bank(config.commitment);
         let encoding = config.encoding.unwrap_or(UiAccountEncoding::Binary);
         let data_slice_config = config.data_slice;
         check_slice_and_encoding(&encoding, data_slice_config.is_some())?;
+        start_timer.stop();
+
+        let mut get_filtered_timer = Measure::start("get_filtered");
         let keyed_accounts = {
             if let Some(owner) = get_spl_token_owner_filter(program_id, &filters) {
                 self.get_filtered_spl_token_accounts_by_owner(&bank, &owner, filters)?
@@ -373,6 +378,9 @@ impl JsonRpcRequestProcessor {
                 self.get_filtered_program_accounts(&bank, program_id, filters)?
             }
         };
+        get_filtered_timer.stop();
+
+        let mut to_result_timer = Measure::start("to_result");
         let result =
             if program_id == &spl_token_id_v2_0() && encoding == UiAccountEncoding::JsonParsed {
                 get_parsed_token_accounts(bank.clone(), keyed_accounts.into_iter()).collect()
@@ -391,10 +399,25 @@ impl JsonRpcRequestProcessor {
                     })
                     .collect()
             };
-        Ok(result).map(|result| match with_context {
+        to_result_timer.stop();
+
+        let mut context_timer = Measure::start("context");
+        let out = Ok(result).map(|result| match with_context {
             true => OptionalContext::Context(new_response(&bank, result)),
             false => OptionalContext::NoContext(result),
-        })
+        });
+        context_timer.stop();
+
+        // this does not include serializing into a JSON string!
+        datapoint_info!(
+            "rpc_get_program_accounts_perf",
+            ("start_timer", start_timer.as_us(), i64),
+            ("get_filtered_timer", get_filtered_timer.as_us(), i64),
+            ("to_result_timer", to_result_timer.as_us(), i64),
+            ("context_timer", context_timer.as_us(), i64),
+        );
+
+        return out;
     }
 
     pub async fn get_inflation_reward(
