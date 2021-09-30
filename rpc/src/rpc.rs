@@ -135,6 +135,218 @@ fn is_finalized(
         && (blockstore.is_root(slot) || bank.status_cache_ancestors().contains(&slot))
 }
 
+// jsonrpc requires the return type of an RPC method to be Deserialize
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum UiAccountsFaster {
+    Basic(OptionalContext<Vec<RpcKeyedAccount>>),
+
+    #[serde(skip)]
+    Optimized(UiAccountsFasterImpl),
+}
+
+pub struct UiAccountsFasterImpl {
+    keyed_accounts: Vec<(Pubkey, AccountSharedData)>,
+    encoding: UiAccountEncoding,
+    data_slice_config: Option<UiDataSliceConfig>,
+    context: Option<RpcResponseContext>,
+}
+
+fn serialize_impl(
+    accounts: &UiAccountsFasterImpl,
+    id: jsonrpc_core::Id,
+    jsonrpc: Option<jsonrpc_core::Version>,
+) -> String {
+    use solana_account_decoder::parse_account_data::parse_account_data;
+    use solana_account_decoder::slice_data;
+    use std::io::Write;
+
+    let estimate_encoded_size = |len: usize| {
+        match accounts.encoding {
+            UiAccountEncoding::Binary | UiAccountEncoding::Base58 => {
+                min(len, MAX_BASE58_BYTES) * 138 / 100 + 1
+            }
+            // will allocate too much for base64zstd, and too little for jsonparsed
+            UiAccountEncoding::Base64
+            | UiAccountEncoding::Base64Zstd
+            | UiAccountEncoding::JsonParsed => len * 4 / 3 + 3,
+        }
+    };
+    // 256 for envelope (including maybe the context)
+    // 45 is the max size of base58 addresses
+    // 128 overhead per account
+    // and then the expected size of base64-encoded data
+    let out_size: usize = 256
+        + (128 + 45 * 2) * accounts.keyed_accounts.len()
+        + accounts
+            .keyed_accounts
+            .iter()
+            .map(|(_pubkey, account)| estimate_encoded_size(account.data().len()))
+            .sum::<usize>();
+
+    struct Appender {
+        buffer: Vec<u8>,
+    }
+
+    impl Appender {
+        // Warning: any reads from the returned slice are undefined behavior
+        fn expand_uninit(&mut self, amount: usize) -> &mut [u8] {
+            let start = self.buffer.len();
+            self.buffer.reserve(amount);
+            unsafe {
+                self.buffer.set_len(start + amount);
+            }
+            &mut self.buffer[start..start + amount]
+        }
+
+        fn append(&mut self, s: &str) {
+            self.expand_uninit(s.len()).clone_from_slice(s.as_bytes());
+        }
+
+        fn append_base58(&mut self, s: &[u8]) {
+            let start = self.buffer.len();
+            let p = bs58::encode(s)
+                .into(self.expand_uninit(s.len() * 138 / 100 + 1))
+                .unwrap();
+            unsafe {
+                self.buffer.set_len(start + p);
+            }
+        }
+
+        fn append_base58_limited(&mut self, s: &[u8]) {
+            if s.len() <= MAX_BASE58_BYTES {
+                self.append_base58(s);
+            } else {
+                self.append("error: data too large for bs58 encoding");
+            }
+        }
+
+        fn append_base64(&mut self, s: &[u8]) {
+            let start = self.buffer.len();
+            let p = base64::encode_config_slice(
+                s,
+                base64::STANDARD,
+                self.expand_uninit(s.len() * 4 / 3 + 3),
+            );
+            unsafe {
+                self.buffer.set_len(start + p);
+            }
+        }
+
+        // One wishes that serde_json::io::Write were public, then Appender could implement it
+        fn append_json<T: serde::Serialize>(&mut self, value: &T) {
+            self.append(&serde_json::to_string(value).expect("serializable"));
+        }
+    }
+
+    let mut buf = Appender {
+        buffer: Vec::with_capacity(out_size),
+    };
+
+    buf.append(r#"{"id":"#);
+    buf.append_json(&id);
+    if let Some(_rpcversion) = jsonrpc {
+        buf.append(r#","jsonrpc":"2.0""#);
+    }
+    buf.append(",\"result\":");
+
+    if let Some(ref context) = accounts.context {
+        buf.append(r#"{"context":"#);
+        buf.append_json(context);
+        buf.append(r#","value":"#);
+    }
+
+    buf.append("[");
+    for (pubkey, account) in &accounts.keyed_accounts {
+        buf.append(r#"{"account":{"data":"#);
+        let sliced_data = slice_data(&account.data(), accounts.data_slice_config);
+        match accounts.encoding {
+            UiAccountEncoding::Binary => {
+                buf.append("\"");
+                buf.append_base58_limited(sliced_data);
+                buf.append("\"");
+            }
+            UiAccountEncoding::Base58 => {
+                buf.append("[\"");
+                buf.append_base58_limited(sliced_data);
+                buf.append(r#"","base58"]"#);
+            }
+            UiAccountEncoding::Base64 => {
+                buf.append("[\"");
+                buf.append_base64(sliced_data);
+                buf.append(r#"","base64"]"#);
+            }
+            UiAccountEncoding::Base64Zstd => {
+                let mut encoder = zstd::stream::write::Encoder::new(Vec::new(), 0).unwrap();
+                match encoder
+                    .write_all(sliced_data)
+                    .and_then(|()| encoder.finish())
+                {
+                    Ok(zstd_data) => {
+                        buf.append("[\"");
+                        buf.append_base64(&zstd_data);
+                        buf.append(r#"","base64+zstd"]"#);
+                    }
+                    Err(_) => {
+                        buf.append("[\"");
+                        buf.append_base64(sliced_data);
+                        buf.append(r#"","base64"]"#);
+                    }
+                }
+            }
+            UiAccountEncoding::JsonParsed => {
+                if let Ok(parsed_data) =
+                    parse_account_data(pubkey, &account.owner(), &account.data(), None)
+                {
+                    buf.append_json(&parsed_data);
+                } else {
+                    buf.append("[\"");
+                    buf.append_base64(sliced_data);
+                    buf.append(r#"","base64"]"#);
+                }
+            }
+        };
+        buf.append(r#","executable":"#);
+        buf.append_json(&account.executable());
+        buf.append(r#","lamports":"#);
+        buf.append_json(&account.lamports());
+        buf.append(r#","owner":""#);
+        buf.append_base58(&account.owner().to_bytes());
+        buf.append(r#"","rentEpoch":"#);
+        buf.append_json(&account.rent_epoch());
+        buf.append(r#"},"pubkey":""#);
+        buf.append_base58(&pubkey.to_bytes());
+        buf.append(r#""},"#);
+    }
+    if accounts.keyed_accounts.len() > 0 {
+        buf.buffer.pop(); // drop trailing comma
+    }
+    buf.append("]");
+
+    if let Some(_) = accounts.context {
+        buf.append("}");
+    }
+    buf.append("}");
+
+    let string = unsafe {
+        // We do not emit invalid UTF-8.
+        String::from_utf8_unchecked(buf.buffer)
+    };
+
+    string
+}
+
+impl jsonrpc_core::types::response::SerializeToJsonResponse for UiAccountsFaster {
+    fn serialize(&self, id: jsonrpc_core::Id, jsonrpc: Option<jsonrpc_core::Version>) -> String {
+        match self {
+            UiAccountsFaster::Basic(data) => {
+                jsonrpc_core::types::response::SerializeToJsonResponse::serialize(data, id, jsonrpc)
+            }
+            UiAccountsFaster::Optimized(accounts) => serialize_impl(accounts, id, jsonrpc),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct JsonRpcConfig {
     pub enable_rpc_transaction_history: bool,
@@ -392,7 +604,7 @@ impl JsonRpcRequestProcessor {
         config: Option<RpcAccountInfoConfig>,
         mut filters: Vec<RpcFilterType>,
         with_context: bool,
-    ) -> Result<OptionalContext<Vec<RpcKeyedAccount>>> {
+    ) -> Result<UiAccountsFaster> {
         let config = config.unwrap_or_default();
         let bank = self.bank(config.commitment);
         let encoding = config.encoding.unwrap_or(UiAccountEncoding::Binary);
@@ -408,25 +620,27 @@ impl JsonRpcRequestProcessor {
                 self.get_filtered_program_accounts(&bank, program_id, filters)?
             }
         };
-        let result = if is_known_spl_token_id(program_id)
-            && encoding == UiAccountEncoding::JsonParsed
-        {
-            get_parsed_token_accounts(bank.clone(), keyed_accounts.into_iter()).collect()
-        } else {
-            keyed_accounts
-                .into_iter()
-                .map(|(pubkey, account)| {
-                    Ok(RpcKeyedAccount {
-                        pubkey: pubkey.to_string(),
-                        account: encode_account(&account, &pubkey, encoding, data_slice_config)?,
-                    })
-                })
-                .collect::<Result<Vec<_>>>()?
+
+        if is_known_spl_token_id(program_id) && encoding == UiAccountEncoding::JsonParsed {
+            let result =
+                get_parsed_token_accounts(bank.clone(), keyed_accounts.into_iter()).collect();
+            let contexted = match with_context {
+                true => OptionalContext::Context(new_response(&bank, result)),
+                false => OptionalContext::NoContext(result),
+            };
+            return Ok(UiAccountsFaster::Basic(contexted));
+        }
+
+        let result = UiAccountsFasterImpl {
+            keyed_accounts,
+            encoding,
+            data_slice_config,
+            context: match with_context {
+                true => Some(RpcResponseContext { slot: bank.slot() }),
+                _ => None,
+            },
         };
-        Ok(result).map(|result| match with_context {
-            true => OptionalContext::Context(new_response(&bank, result)),
-            false => OptionalContext::NoContext(result),
-        })
+        Ok(UiAccountsFaster::Optimized(result))
     }
 
     pub async fn get_inflation_reward(
@@ -2864,7 +3078,7 @@ pub mod rpc_accounts {
             meta: Self::Metadata,
             program_id_str: String,
             config: Option<RpcProgramAccountsConfig>,
-        ) -> Result<OptionalContext<Vec<RpcKeyedAccount>>>;
+        ) -> Result<UiAccountsFaster>;
 
         #[rpc(meta, name = "getBlockCommitment")]
         fn get_block_commitment(
@@ -2990,7 +3204,7 @@ pub mod rpc_accounts {
             meta: Self::Metadata,
             program_id_str: String,
             config: Option<RpcProgramAccountsConfig>,
-        ) -> Result<OptionalContext<Vec<RpcKeyedAccount>>> {
+        ) -> Result<UiAccountsFaster> {
             debug!(
                 "get_program_accounts rpc request received: {:?}",
                 program_id_str
