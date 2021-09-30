@@ -186,7 +186,7 @@ pub struct UiDataSliceConfig {
     pub length: usize,
 }
 
-fn slice_data(data: &[u8], data_slice_config: Option<UiDataSliceConfig>) -> &[u8] {
+pub fn slice_data(data: &[u8], data_slice_config: Option<UiDataSliceConfig>) -> &[u8] {
     if let Some(UiDataSliceConfig { offset, length }) = data_slice_config {
         if offset >= data.len() {
             &[]
