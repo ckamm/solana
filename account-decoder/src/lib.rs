@@ -17,13 +17,15 @@ pub mod validator_info;
 use {
     crate::parse_account_data::{parse_account_data, AccountAdditionalData, ParsedAccount},
     solana_sdk::{
-        account::ReadableAccount, account::WritableAccount, clock::Epoch,
-        fee_calculator::FeeCalculator, pubkey::Pubkey,
+        account::ReadableAccount, account::WritableAccount, account::AccountSharedData,
+        clock::Epoch, fee_calculator::FeeCalculator, pubkey::Pubkey,
     },
     std::{
         io::{Read, Write},
         str::FromStr,
+        cell::RefCell,
     },
+    serde::{ Serialize, Serializer, ser::SerializeMap, ser::SerializeSeq },
 };
 
 pub type StringAmount = String;
@@ -173,7 +175,7 @@ pub struct UiDataSliceConfig {
     pub length: usize,
 }
 
-fn slice_data(data: &[u8], data_slice_config: Option<UiDataSliceConfig>) -> &[u8] {
+pub fn slice_data(data: &[u8], data_slice_config: Option<UiDataSliceConfig>) -> &[u8] {
     if let Some(UiDataSliceConfig { offset, length }) = data_slice_config {
         if offset >= data.len() {
             &[]

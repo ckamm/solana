@@ -125,6 +125,172 @@ fn is_finalized(
         && (blockstore.is_root(slot) || bank.status_cache_ancestors().contains(&slot))
 }
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum UiAccountsFaster {
+    Input(Vec<RpcKeyedAccount>),
+
+    #[serde(skip)]
+    Output(UiAccountsFasterImpl),
+}
+
+pub struct UiAccountsFasterImpl {
+    keyed_accounts: Vec<(Pubkey, AccountSharedData)>,
+    encoding: UiAccountEncoding,
+    data_slice_config: Option<UiDataSliceConfig>,
+    context: Option<RpcResponseContext>,
+}
+
+fn serialize_impl(accounts: &UiAccountsFasterImpl, id: jsonrpc_core::Id, jsonrpc: Option<jsonrpc_core::Version>) -> String {
+    use solana_account_decoder::parse_account_data::parse_account_data;
+    use solana_account_decoder::slice_data;
+    use std::io::Write;
+
+    let mut timer = Measure::start("to_result");
+
+    // 128 for envelope
+    // 44 is the max size of base58 addresses
+    // 128 overhead per account
+    // and then the expected size of base64-encoded data
+    // TODO: The latter should depend on the "encoding" flag
+    // TODO: if context is given it should be bigger
+    let out_size : usize = 128 + (128 + 44 * 2) * accounts.keyed_accounts.len() + accounts.keyed_accounts
+        .iter()
+        .map(|(pubkey, account)| account.data.len() * 4 / 3 + 4)
+        .sum::<usize>();
+
+    struct Appender {
+        buffer: Vec<u8>,
+        p: usize,
+    }
+
+    impl Appender {
+        fn append(&mut self, s: &str) {
+            self.buffer[self.p..self.p+s.len()].clone_from_slice(s.as_bytes());
+            self.p += s.len();
+        }
+
+        fn slice_rest(&mut self) -> &mut [u8] {
+            &mut self.buffer[self.p..]
+        }
+
+        // One wishes that serde_json::io::Write were public, then Appender could implement it
+        fn append_json<T: serde::Serialize>(&mut self, value: &T) {
+            self.append(&serde_json::to_string(value).expect("serializable"));
+        }
+    }
+
+    // TODO: I want an uninitialized buffer - but this way may not be safe.
+    let mut buf = Appender { buffer: Vec::with_capacity(out_size), p: 0 };
+    unsafe { buf.buffer.set_len(out_size); }
+
+    buf.append("{\"id\":");
+    buf.append_json(&id);
+    if let Some(rpcversion) = jsonrpc {
+        buf.append(",\"jsonrpc\":\"2.0\"");
+    }
+    buf.append(",\"result\":");
+
+    if let Some(ref context) = accounts.context {
+        buf.append("{\"context\":");
+        buf.append_json(context);
+        buf.append(",\"value\":");
+    }
+
+    buf.append("[");
+    for (pubkey, account) in &accounts.keyed_accounts {
+        buf.append("{\"account\":{\"data\":");
+        match accounts.encoding {
+            UiAccountEncoding::Binary => {
+                buf.append("\"");
+                buf.p += bs58::encode(slice_data(&account.data(), accounts.data_slice_config)).into(buf.slice_rest()).unwrap();
+                buf.append("\"");
+            },
+            UiAccountEncoding::Base58 => {
+                buf.append("[\"");
+                buf.p += bs58::encode(slice_data(&account.data(), accounts.data_slice_config)).into(buf.slice_rest()).unwrap();
+                buf.append("\",\"base58\"]");
+            },
+            UiAccountEncoding::Base64 => {
+                buf.append("[\"");
+                buf.p += base64::encode_config_slice(slice_data(&account.data, accounts.data_slice_config), base64::STANDARD, buf.slice_rest());
+                buf.append("\",\"base64\"]");
+            },
+            UiAccountEncoding::Base64Zstd => {
+                let mut encoder = zstd::stream::write::Encoder::new(Vec::new(), 0).unwrap();
+                match encoder
+                    .write_all(slice_data(&account.data(), accounts.data_slice_config))
+                    .and_then(|()| encoder.finish())
+                {
+                    Ok(zstd_data) => {
+                        buf.append("[\"");
+                        base64::encode_config_slice(zstd_data, base64::STANDARD, buf.slice_rest());
+                        buf.append("\",\"base64+zstd\"]");
+                    },
+                    Err(_) => {
+                        buf.append("[\"");
+                        buf.p += base64::encode_config_slice(slice_data(&account.data, accounts.data_slice_config), base64::STANDARD, buf.slice_rest());
+                        buf.append("\",\"base64\"]");
+                    },
+                }
+            }
+            UiAccountEncoding::JsonParsed => {
+                if let Ok(parsed_data) =
+                    parse_account_data(pubkey, &account.owner(), &account.data(), None)
+                {
+                    buf.append_json(&parsed_data);
+                } else {
+                    buf.append("[\"");
+                    buf.p += base64::encode_config_slice(slice_data(&account.data, accounts.data_slice_config), base64::STANDARD, buf.slice_rest());
+                    buf.append("\",\"base64\"]");
+                }
+            }
+        };
+        buf.append(",\"executable\":");
+        buf.append_json(&account.executable());
+        buf.append(",\"lamports\":");
+        buf.append_json(&account.lamports());
+        buf.append(",\"owner\":\"");
+        buf.p += bs58::encode(account.owner.to_bytes()).into(buf.slice_rest()).unwrap();
+        buf.append("\",\"rentEpoch\":");
+        buf.append_json(&account.rent_epoch());
+        buf.append("},\"pubkey\":\"");
+        buf.p += bs58::encode(pubkey.to_bytes()).into(buf.slice_rest()).unwrap();
+        buf.append("\"},");
+    }
+    buf.p -= 1; // drop trailing comma
+    buf.append("]");
+
+    if let Some(_) = accounts.context {
+        buf.append("}");
+    }
+    buf.append("}");
+
+    buf.buffer.truncate(buf.p);
+    let string = unsafe {
+        // We do not emit invalid UTF-8.
+        String::from_utf8_unchecked(buf.buffer)
+    };
+
+    timer.stop();
+    datapoint_info!(
+        "rpc_get_program_accounts_perf2",
+        ("total_elapsed", timer.as_us(), i64),
+    );
+
+    string
+}
+
+impl jsonrpc_core::types::response::SerializeToJsonResponse for UiAccountsFaster {
+    fn serialize(&self, id: jsonrpc_core::Id, jsonrpc: Option<jsonrpc_core::Version>) -> String {
+        match self {
+            UiAccountsFaster::Output(accounts) => serialize_impl(accounts, id, jsonrpc),
+            _ => panic!("not implemented"),
+        }
+    }
+}
+
+
 #[derive(Debug, Default, Clone)]
 pub struct JsonRpcConfig {
     pub enable_rpc_transaction_history: bool,
@@ -356,7 +522,7 @@ impl JsonRpcRequestProcessor {
         config: Option<RpcAccountInfoConfig>,
         filters: Vec<RpcFilterType>,
         with_context: bool,
-    ) -> Result<OptionalContext<Vec<RpcKeyedAccount>>> {
+    ) -> Result<UiAccountsFaster> {
         let mut total_elapsed_timer = Measure::start("total");
         let config = config.unwrap_or_default();
         let bank = self.bank(config.commitment);
@@ -376,27 +542,20 @@ impl JsonRpcRequestProcessor {
         };
         get_filtered_timer.stop();
 
-        let mut to_result_timer = Measure::start("to_result");
+        // TODO:
+        /*
         let result =
             if program_id == &spl_token_id_v2_0() && encoding == UiAccountEncoding::JsonParsed {
                 get_parsed_token_accounts(bank.clone(), keyed_accounts.into_iter()).collect()
-            } else {
-                keyed_accounts
-                    .into_iter()
-                    .map(|(pubkey, account)| {
-                        Ok(RpcKeyedAccount {
-                            pubkey: pubkey.to_string(),
-                            account: UiAccount::encode(
-                                &pubkey,
-                                &account,
-                                encoding,
-                                None,
-                                data_slice_config,
-                            ),
-                        })
-                    })
-                    .collect::<Result<Vec<_>>>()?
-            };
+        */
+
+        let mut to_result_timer = Measure::start("to_result");
+        let result = UiAccountsFasterImpl {
+            keyed_accounts,
+            encoding,
+            data_slice_config,
+            context: match with_context { true => Some(RpcResponseContext { slot: bank.slot() }), _ => None },
+        };
         to_result_timer.stop();
         total_elapsed_timer.stop();
         datapoint_info!(
@@ -405,10 +564,7 @@ impl JsonRpcRequestProcessor {
             ("get_filtered_timer", get_filtered_timer.as_us(), i64),
             ("to_result_timer", to_result_timer.as_us(), i64),
         );
-        Ok(result).map(|result| match with_context {
-            true => OptionalContext::Context(new_response(&bank, result)),
-            false => OptionalContext::NoContext(result),
-        })
+        Ok(UiAccountsFaster::Output(result))
     }
 
     pub async fn get_inflation_reward(
@@ -2489,7 +2645,7 @@ pub mod rpc_full {
             meta: Self::Metadata,
             program_id_str: String,
             config: Option<RpcProgramAccountsConfig>,
-        ) -> Result<OptionalContext<Vec<RpcKeyedAccount>>>;
+        ) -> Result<UiAccountsFaster>;
 
         #[rpc(meta, name = "getMinimumBalanceForRentExemption")]
         fn get_minimum_balance_for_rent_exemption(
@@ -2846,7 +3002,7 @@ pub mod rpc_full {
             meta: Self::Metadata,
             program_id_str: String,
             config: Option<RpcProgramAccountsConfig>,
-        ) -> Result<OptionalContext<Vec<RpcKeyedAccount>>> {
+        ) -> Result<UiAccountsFaster> {
             debug!(
                 "get_program_accounts rpc request received: {:?}",
                 program_id_str

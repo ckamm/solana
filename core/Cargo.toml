@@ -86,6 +86,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.6", features = ["codec", "compat"] }
 solana-rayon-threadlimit = { path = "../rayon-threadlimit", version = "=1.6.27" }
 trees = "0.2.1"
+zstd = "0.5.1"
 
 [dev-dependencies]
 jsonrpc-derive = "18.0.0"

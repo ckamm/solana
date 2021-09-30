@@ -4464,6 +4464,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "trees",
+ "zstd",
 ]
 
 [[package]]
