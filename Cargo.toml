@@ -86,3 +86,10 @@ resolver = "2"
 
 [profile.dev]
 split-debuginfo = "unpacked"
+
+[patch.crates-io]
+jsonrpc-core = { git = "https://github.com/ckamm/jsonrpc", rev = "1839c50c24b42db3deec196c4ee320edf2dd51a8" }
+jsonrpc-derive = { git = "https://github.com/ckamm/jsonrpc", rev = "1839c50c24b42db3deec196c4ee320edf2dd51a8" }
+jsonrpc-http-server = { git = "https://github.com/ckamm/jsonrpc", rev = "1839c50c24b42db3deec196c4ee320edf2dd51a8" }
+jsonrpc-pubsub = { git = "https://github.com/ckamm/jsonrpc", rev = "1839c50c24b42db3deec196c4ee320edf2dd51a8" }
+jsonrpc-core-client = { git = "https://github.com/ckamm/jsonrpc", rev = "1839c50c24b42db3deec196c4ee320edf2dd51a8" }
