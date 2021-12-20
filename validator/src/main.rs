@@ -1544,6 +1544,16 @@ pub fn main() {
                        May be specified multiple times. If unspecified any snapshot hash will be accepted"),
         )
         .arg(
+            Arg::with_name("tx fwd validators")
+                .alias("tx-fwd-validator")
+                .long("tx-fwd-validator")
+                .validator(is_pubkey)
+                .value_name("VALIDATOR IDENTITY")
+                .multiple(true)
+                .takes_value(true)
+                .help("Validators to always send transactions to"),
+        )
+        .arg(
             Arg::with_name("debug_key")
                 .long("debug-key")
                 .validator(is_pubkey)
@@ -2338,6 +2348,16 @@ pub fn main() {
         "gossip_validators",
         "--gossip-validator",
     );
+
+    let tx_fwd_validators = validators_set(
+        &identity_keypair.pubkey(),
+        &matches,
+        "tx-fwd-validator",
+        "--tx-fwd-validator",
+    );
+    unsafe {
+        send_transaction_service::TX_FWD_VALIDATORS.extend(&tx_fwd_validators.unwrap_or_default());
+    }
 
     let bind_address = solana_net_utils::parse_host(matches.value_of("bind_address").unwrap())
         .expect("invalid bind_address");

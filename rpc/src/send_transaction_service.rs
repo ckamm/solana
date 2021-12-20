@@ -21,6 +21,8 @@ use {
     },
 };
 
+pub static mut TX_FWD_VALIDATORS: Vec<Pubkey> = vec![];
+
 /// Maximum size of the transaction queue
 const MAX_TRANSACTION_QUEUE_SIZE: usize = 10_000; // This seems like a lot but maybe it needs to be bigger one day
 /// Default retry interval
@@ -88,10 +90,15 @@ impl LeaderInfo {
 
     pub fn get_leader_tpus(&self, max_count: u64) -> Vec<&SocketAddr> {
         let recorder = self.poh_recorder.lock().unwrap();
-        let leaders: Vec<_> = (0..max_count)
+        let mut leaders: Vec<_> = (0..max_count)
             .filter_map(|i| recorder.leader_after_n_slots(i * NUM_CONSECUTIVE_LEADER_SLOTS))
             .collect();
         drop(recorder);
+
+        unsafe {
+            leaders.extend(&TX_FWD_VALIDATORS.clone());
+        }
+
         let mut unique_leaders = vec![];
         for leader in leaders.iter() {
             if let Some(addr) = self.recent_peers.get(leader) {
