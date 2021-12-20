@@ -16,6 +16,8 @@ use {
     },
 };
 
+pub static mut TX_FWD_VALIDATORS: Vec<Pubkey> = vec![];
+
 /// Maximum size of the transaction queue
 const MAX_TRANSACTION_QUEUE_SIZE: usize = 10_000; // This seems like a lot but maybe it needs to be bigger one day
 /// Default retry interval
