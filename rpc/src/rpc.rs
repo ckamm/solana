@@ -2493,6 +2493,10 @@ fn _send_transaction(
         .send(transaction_info)
         .unwrap_or_else(|err| warn!("Failed to enqueue transaction: {}", err));
 
+    info!(
+        "transaction enqueued signature={}",
+        signature.to_string()
+    );
     Ok(signature.to_string())
 }
 
