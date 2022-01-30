@@ -113,6 +113,7 @@ impl Default for VersionedMessage {
 
 impl Sanitize for VersionedMessage {
     fn sanitize(&self) -> Result<(), SanitizeError> {
+        println!("versmsg sani");
         match self {
             Self::Legacy(message) => message.sanitize(),
             Self::V0(message) => message.sanitize(),

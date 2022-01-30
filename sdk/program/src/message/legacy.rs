@@ -192,6 +192,7 @@ pub struct Message {
 
 impl Sanitize for Message {
     fn sanitize(&self) -> std::result::Result<(), SanitizeError> {
+        println!("legacymsg sani");
         // signing area and read-only non-signing area should not overlap
         if self.header.num_required_signatures as usize
             + self.header.num_readonly_unsigned_accounts as usize

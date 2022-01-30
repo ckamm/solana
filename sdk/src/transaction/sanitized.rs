@@ -49,7 +49,9 @@ impl SanitizedTransaction {
         is_simple_vote_tx: Option<bool>,
         address_loader: impl Fn(&[MessageAddressTableLookup]) -> Result<LoadedAddresses>,
     ) -> Result<Self> {
+        println!("tx sani");
         tx.sanitize()?;
+        println!("tx sani2");
 
         let signatures = tx.signatures;
         let message = match tx.message {
@@ -59,6 +61,7 @@ impl SanitizedTransaction {
                 message,
             }),
         };
+        println!("tx sani3");
 
         let is_simple_vote_tx = is_simple_vote_tx.unwrap_or_else(|| {
             // TODO: Move to `vote_parser` runtime module

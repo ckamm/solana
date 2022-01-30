@@ -20,7 +20,7 @@ use {
         message::{Message, SanitizedMessage},
         pubkey::Pubkey,
         signature::Signature,
-        transaction::{self, SanitizedTransaction, Transaction},
+        transaction::{self, SanitizedTransaction, Transaction, VersionedTransaction},
     },
     solana_send_transaction_service::{
         send_transaction_service::{SendTransactionService, TransactionInfo},
@@ -81,12 +81,14 @@ impl BanksServer {
             while let Ok(info) = transaction_receiver.try_recv() {
                 transaction_infos.push(info);
             }
-            let transactions: Vec<_> = transaction_infos
+            let transactions: Vec<VersionedTransaction> = transaction_infos
                 .into_iter()
                 .map(|info| deserialize(&info.wire_transaction).unwrap())
                 .collect();
+            println!("received tx {:?}", transactions);
             let bank = bank_forks.read().unwrap().working_bank();
-            let _ = bank.try_process_transactions(transactions.iter());
+            let _a = bank.try_process_entry_transactions(transactions);
+            println!("result: {:?}", _a);
         }
     }
 
@@ -158,6 +160,20 @@ fn verify_transaction(
         Err(err)
     } else if let Err(err) = transaction.verify_precompiles(feature_set) {
         Err(err)
+    } else {
+        Ok(())
+    }
+}
+
+fn verify_versioned_transaction(
+    transaction: &VersionedTransaction,
+    feature_set: &Arc<FeatureSet>,
+) -> transaction::Result<()> {
+    if let Err(err) = transaction.verify_and_hash_message() {
+        Err(err)
+    // TODO: Can't verify precompiles without looking up address map accounts...
+    //} else if let Err(err) = transaction.verify_precompiles(feature_set) {
+    //    Err(err)
     } else {
         Ok(())
     }
@@ -312,6 +328,38 @@ impl Banks for BanksServer {
             None,
         );
         self.transaction_sender.send(info).unwrap();
+        self.poll_signature_status(&signature, blockhash, last_valid_block_height, commitment)
+            .await
+    }
+
+    async fn process_versioned_transaction_with_commitment_and_context(
+        self,
+        _: Context,
+        transaction: VersionedTransaction,
+        commitment: CommitmentLevel,
+    ) -> Option<transaction::Result<()>> {
+        if let Err(err) =
+            verify_versioned_transaction(&transaction, &self.bank(commitment).feature_set)
+        {
+            return Some(Err(err));
+        }
+
+        let blockhash = &transaction.message.recent_blockhash();
+        let last_valid_block_height = self
+            .bank(commitment)
+            .get_blockhash_last_valid_block_height(blockhash)
+            .unwrap();
+        let signature = transaction.signatures.get(0).cloned().unwrap_or_default();
+        let info = TransactionInfo::new(
+            signature,
+            serialize(&transaction).unwrap(),
+            last_valid_block_height,
+            None,
+            None,
+        );
+        println!("send tx");
+        self.transaction_sender.send(info).unwrap();
+        println!("await tx");
         self.poll_signature_status(&signature, blockhash, last_valid_block_height, commitment)
             .await
     }

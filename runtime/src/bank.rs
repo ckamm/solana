@@ -3200,15 +3200,21 @@ impl Bank {
     /// Prepare a transaction batch from a list of versioned transactions from
     /// an entry. Used for tests only.
     pub fn prepare_entry_batch(&self, txs: Vec<VersionedTransaction>) -> Result<TransactionBatch> {
+        println!("prep");
         let sanitized_txs = txs
             .into_iter()
             .map(|tx| {
                 let message_hash = tx.message.hash();
-                SanitizedTransaction::try_create(tx, message_hash, None, |_| {
-                    Err(TransactionError::UnsupportedVersion)
+                SanitizedTransaction::try_create(tx, message_hash, None, |lookups| {
+                    self.load_lookup_table_addresses(lookups)
                 })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<Vec<_>>>();
+        if let Err(ref err) = sanitized_txs {
+            println!("prep sani err {:?}", err);
+        }
+        let sanitized_txs = sanitized_txs?;
+        println!("prep sani done");
         let lock_results = self
             .rc
             .accounts
