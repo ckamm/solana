@@ -2824,6 +2824,10 @@ impl Node {
         let (tvu_forwards_port, tvu_forwards) = Self::bind(bind_ip_addr, port_range);
         let ((tpu_port, tpu), (_tpu_quic_port, tpu_quic)) =
             bind_two_consecutive_in_range(bind_ip_addr, port_range).unwrap();
+        let (tpu_port2, tpu_socket2) = Self::bind(bind_ip_addr, port_range);
+        let (tpu_port3, tpu_socket3) = Self::bind(bind_ip_addr, port_range);
+        let (tpu_port4, tpu_socket4) = Self::bind(bind_ip_addr, port_range);
+        warn!("tpu second port {:?} {:?} {:?}", tpu_port2, tpu_port3, tpu_port4);
         let (tpu_forwards_port, tpu_forwards) = Self::bind(bind_ip_addr, port_range);
         let (tpu_vote_port, tpu_vote) = Self::bind(bind_ip_addr, port_range);
         let (_, retransmit_socket) = Self::bind(bind_ip_addr, port_range);
@@ -2859,7 +2863,7 @@ impl Node {
                 ip_echo: Some(ip_echo),
                 tvu: vec![tvu],
                 tvu_forwards: vec![tvu_forwards],
-                tpu: vec![tpu],
+                tpu: vec![tpu, tpu_socket2, tpu_socket3, tpu_socket4],
                 tpu_forwards: vec![tpu_forwards],
                 tpu_vote: vec![tpu_vote],
                 broadcast: vec![broadcast],

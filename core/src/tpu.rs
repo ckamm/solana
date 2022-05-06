@@ -45,7 +45,7 @@ pub const DEFAULT_TPU_COALESCE_MS: u64 = 5;
 /// fetch stage.
 ///
 /// 10k batches means up to 1.3M packets, roughly 1.6GB of memory
-pub const DEFAULT_TPU_MAX_QUEUED_BATCHES_UDP: usize = 10_000;
+pub const DEFAULT_TPU_MAX_QUEUED_BATCHES_UDP: usize = 1000000;
 
 /// Timeout interval when joining threads during TPU close
 const TPU_THREADS_JOIN_TIMEOUT_SECONDS: u64 = 10;
