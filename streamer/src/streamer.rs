@@ -46,6 +46,7 @@ pub struct StreamerReceiveStats {
     pub name: &'static str,
     pub packets_count: AtomicUsize,
     pub packet_batches_count: AtomicUsize,
+    pub dropped_batches_count: AtomicUsize,
     pub full_packet_batches_count: AtomicUsize,
     pub max_channel_len: AtomicUsize,
 }
@@ -56,6 +57,7 @@ impl StreamerReceiveStats {
             name,
             packets_count: AtomicUsize::default(),
             packet_batches_count: AtomicUsize::default(),
+            dropped_batches_count: AtomicUsize::default(),
             full_packet_batches_count: AtomicUsize::default(),
             max_channel_len: AtomicUsize::default(),
         }
@@ -72,6 +74,11 @@ impl StreamerReceiveStats {
             (
                 "packet_batches_count",
                 self.packet_batches_count.swap(0, Ordering::Relaxed) as i64,
+                i64
+            ),
+            (
+                "dropped_batches_count",
+                self.dropped_batches_count.swap(0, Ordering::Relaxed) as i64,
                 i64
             ),
             (
@@ -120,6 +127,7 @@ fn recv_loop(
                     let StreamerReceiveStats {
                         packets_count,
                         packet_batches_count,
+                        dropped_batches_count,
                         full_packet_batches_count,
                         max_channel_len,
                         ..
@@ -135,6 +143,7 @@ fn recv_loop(
                     match packet_batch_sender.try_send(packet_batch) {
                         Ok(_) => {}
                         Err(TrySendError::Full(unsent_batch)) => {
+                            dropped_batches_count.fetch_add(1, Ordering::Relaxed);
                             // reuse the memory
                             packet_batch = unsent_batch;
                             packet_batch.packets.truncate(0);
