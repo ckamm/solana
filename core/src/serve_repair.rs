@@ -29,7 +29,7 @@ use {
     solana_sdk::{
         clock::Slot, hash::Hash, packet::PACKET_DATA_SIZE, pubkey::Pubkey, timing::duration_as_ms,
     },
-    solana_streamer::streamer::{PacketBatchReceiver, PacketBatchSender},
+    solana_streamer::streamer::{PacketBatchReceiver, PacketBatchSender, MyPacketBatchReceiver},
     std::{
         collections::HashSet,
         net::SocketAddr,
@@ -319,25 +319,21 @@ impl ServeRepair {
         obj: &Arc<RwLock<Self>>,
         recycler: &PacketBatchRecycler,
         blockstore: Option<&Arc<Blockstore>>,
-        requests_receiver: &PacketBatchReceiver,
+        requests_receiver: &MyPacketBatchReceiver,
         response_sender: &PacketBatchSender,
         stats: &mut ServeRepairStats,
         packet_threshold: &mut DynamicPacketToProcessThreshold,
     ) -> Result<()> {
         //TODO cache connections
         let timeout = Duration::new(1, 0);
-        let mut reqs_v = vec![requests_receiver.recv_timeout(timeout)?];
-        let mut total_packets = reqs_v[0].packets.len();
+        let (mut reqs_v, _, _) = requests_receiver.recv_timeout(timeout)?;
 
         let mut dropped_packets = 0;
-        while let Ok(more) = requests_receiver.try_recv() {
-            total_packets += more.packets.len();
-            if packet_threshold.should_drop(total_packets) {
-                dropped_packets += more.packets.len();
-            } else {
-                reqs_v.push(more);
-            }
-        }
+        let mut total_packets = 0;
+        reqs_v.retain(|batch| {
+            total_packets += batch.packets.len();
+            !packet_threshold.should_drop(total_packets)
+        });
 
         stats.dropped_packets += dropped_packets;
         stats.total_packets += total_packets;
@@ -384,7 +380,7 @@ impl ServeRepair {
     pub fn listen(
         me: Arc<RwLock<Self>>,
         blockstore: Option<Arc<Blockstore>>,
-        requests_receiver: PacketBatchReceiver,
+        requests_receiver: MyPacketBatchReceiver,
         response_sender: PacketBatchSender,
         exit: &Arc<AtomicBool>,
     ) -> JoinHandle<()> {

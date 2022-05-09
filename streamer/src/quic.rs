@@ -1,4 +1,5 @@
 use {
+    crate::streamer::MyPacketBatchSender,
     crossbeam_channel::Sender,
     futures_util::stream::StreamExt,
     pem::Pem,
@@ -152,7 +153,7 @@ fn handle_chunk(
     chunk: &Result<Option<quinn::Chunk>, quinn::ReadError>,
     maybe_batch: &mut Option<PacketBatch>,
     remote_addr: &SocketAddr,
-    packet_sender: &Sender<PacketBatch>,
+    packet_sender: &MyPacketBatchSender,
     stats: Arc<StreamStats>,
 ) -> bool {
     match chunk {
@@ -196,7 +197,7 @@ fn handle_chunk(
                 // done receiving chunks
                 if let Some(batch) = maybe_batch.take() {
                     let len = batch.packets[0].meta.size;
-                    if let Err(e) = packet_sender.send(batch) {
+                    if let Err(e) = packet_sender.send_batch(batch) {
                         stats
                             .total_packet_batch_send_err
                             .fetch_add(1, Ordering::Relaxed);
@@ -427,7 +428,7 @@ impl StreamStats {
 
 fn handle_connection(
     mut uni_streams: IncomingUniStreams,
-    packet_sender: Sender<PacketBatch>,
+    packet_sender: MyPacketBatchSender,
     remote_addr: SocketAddr,
     last_update: Arc<AtomicU64>,
     connection_table: Arc<Mutex<ConnectionTable>>,
@@ -485,7 +486,7 @@ pub fn spawn_server(
     sock: UdpSocket,
     keypair: &Keypair,
     gossip_host: IpAddr,
-    packet_sender: Sender<PacketBatch>,
+    packet_sender: MyPacketBatchSender,
     exit: Arc<AtomicBool>,
     max_connections_per_ip: usize,
     staked_nodes: Arc<RwLock<HashMap<IpAddr, u64>>>,

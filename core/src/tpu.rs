@@ -111,9 +111,9 @@ impl Tpu {
             transactions_quic: transactions_quic_sockets,
         } = sockets;
 
-        let (udp_packet_sender, udp_packet_receiver) = bounded(tpu_max_queued_batches_udp);
+        let (udp_packet_sender, udp_packet_receiver) = solana_streamer::streamer::my_packet_batch_channel(100_000, 10_000);
         let (udp_vote_packet_sender, udp_vote_packet_receiver) =
-            bounded(tpu_max_queued_batches_udp);
+            solana_streamer::streamer::my_packet_batch_channel(100_000, 10_000);
         let fetch_stage = FetchStage::new_with_sender(
             transactions_sockets,
             tpu_forwards_sockets,
@@ -126,7 +126,7 @@ impl Tpu {
         );
 
         let (udp_find_packet_sender_stake_sender, udp_find_packet_sender_stake_receiver) =
-            unbounded();
+            solana_streamer::streamer::my_packet_batch_channel(100_000, 10_000);
 
         let udp_find_packet_sender_stake_stage = FindPacketSenderStakeStage::new(
             udp_packet_receiver,
@@ -136,7 +136,7 @@ impl Tpu {
         );
 
         let (udp_vote_find_packet_sender_stake_sender, udp_vote_find_packet_sender_stake_receiver) =
-            unbounded();
+            solana_streamer::streamer::my_packet_batch_channel(100_000, 10_000);
 
         let udp_vote_find_packet_sender_stake_stage = FindPacketSenderStakeStage::new(
             udp_vote_packet_receiver,
@@ -145,9 +145,9 @@ impl Tpu {
             cluster_info.clone(),
         );
 
-        let (quic_packet_sender, quic_packet_receiver) = unbounded();
+        let (quic_packet_sender, quic_packet_receiver) = solana_streamer::streamer::my_packet_batch_channel(100_000, 10_000);
         let (quic_find_packet_sender_stake_sender, quic_find_packet_sender_stake_receiver) =
-            unbounded();
+            solana_streamer::streamer::my_packet_batch_channel(100_000, 10_000);
 
         let quic_find_packet_sender_stake_stage = FindPacketSenderStakeStage::new(
             quic_packet_receiver,
@@ -156,7 +156,7 @@ impl Tpu {
             cluster_info.clone(),
         );
 
-        let (verified_sender, verified_receiver) = unbounded();
+        let (verified_sender, verified_receiver) = solana_streamer::streamer::my_packet_batch_channel(10_000, 10_000);
 
         let staked_nodes = Arc::new(RwLock::new(HashMap::new()));
         let staked_nodes_updater_service = StakedNodesUpdaterService::new(
@@ -198,7 +198,7 @@ impl Tpu {
             )
         };
 
-        let (verified_tpu_vote_packets_sender, verified_tpu_vote_packets_receiver) = unbounded();
+        let (verified_tpu_vote_packets_sender, verified_tpu_vote_packets_receiver) = solana_streamer::streamer::my_packet_batch_channel(10_000, 10_000);
 
         let udp_vote_sigverify_stage = {
             let verifier = TransactionSigVerifier::new_reject_non_vote();
@@ -211,7 +211,7 @@ impl Tpu {
         };
 
         let (verified_gossip_vote_packets_sender, verified_gossip_vote_packets_receiver) =
-            unbounded();
+            solana_streamer::streamer::my_packet_batch_channel(10_000, 10_000);
         let cluster_info_vote_listener = ClusterInfoVoteListener::new(
             exit.clone(),
             cluster_info.clone(),

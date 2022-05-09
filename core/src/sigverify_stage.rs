@@ -16,7 +16,7 @@ use {
         sigverify::{count_valid_packets, shrink_batches, Deduper},
     },
     solana_sdk::timing,
-    solana_streamer::streamer::{self, StreamerError},
+    solana_streamer::streamer::{self, StreamerError, MyPacketBatchSender, MyPacketBatchReceiver},
     std::{
         thread::{self, Builder, JoinHandle},
         time::Instant,
@@ -199,7 +199,7 @@ impl SigVerifyStage {
     #[allow(clippy::new_ret_no_self)]
     pub fn new<T: SigVerifier + 'static + Send + Clone>(
         packet_receiver: find_packet_sender_stake_stage::FindPacketSenderStakeReceiver,
-        verified_sender: Sender<Vec<PacketBatch>>,
+        verified_sender: MyPacketBatchSender,
         verifier: T,
         name: &'static str,
     ) -> Self {
@@ -235,11 +235,11 @@ impl SigVerifyStage {
     fn verifier<T: SigVerifier>(
         deduper: &Deduper,
         recvr: &find_packet_sender_stake_stage::FindPacketSenderStakeReceiver,
-        sendr: &Sender<Vec<PacketBatch>>,
+        sendr: &MyPacketBatchSender,
         verifier: &T,
         stats: &mut SigVerifierStats,
     ) -> Result<()> {
-        let (mut batches, num_packets, recv_duration) = streamer::recv_vec_packet_batches(recvr)?;
+        let (mut batches, num_packets, recv_duration) = recvr.recv_default_timeout().map_err(StreamerError::from)?;
 
         let batches_len = batches.len();
         debug!(
@@ -277,7 +277,7 @@ impl SigVerifyStage {
         let total_shrinks = start_len.saturating_sub(batches.len());
         shrink_time.stop();
 
-        sendr.send(batches)?;
+        sendr.send_batches(batches).map_err(StreamerError::from)?;
 
         debug!(
             "@{:?} verifier: done. batches: {} total verify time: {:?} verified: {} v/s {}",
@@ -322,7 +322,7 @@ impl SigVerifyStage {
 
     fn verifier_service<T: SigVerifier + 'static + Send + Clone>(
         packet_receiver: find_packet_sender_stake_stage::FindPacketSenderStakeReceiver,
-        verified_sender: Sender<Vec<PacketBatch>>,
+        verified_sender: MyPacketBatchSender,
         verifier: &T,
         name: &'static str,
     ) -> JoinHandle<()> {
@@ -369,7 +369,7 @@ impl SigVerifyStage {
 
     fn verifier_services<T: SigVerifier + 'static + Send + Clone>(
         packet_receiver: find_packet_sender_stake_stage::FindPacketSenderStakeReceiver,
-        verified_sender: Sender<Vec<PacketBatch>>,
+        verified_sender: MyPacketBatchSender,
         verifier: T,
         name: &'static str,
     ) -> JoinHandle<()> {

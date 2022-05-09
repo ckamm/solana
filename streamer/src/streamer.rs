@@ -248,7 +248,7 @@ pub enum StreamerError {
     RecvTimeout(#[from] RecvTimeoutError),
 
     #[error("send packets error")]
-    Send(#[from] SendError<PacketBatch>),
+    Send(#[from] SendError<()>),
 
     #[error(transparent)]
     SendPktsError(#[from] SendPktsError),
@@ -317,7 +317,7 @@ pub struct ReceiverOptions {
 fn recv_loop(
     socket: &UdpSocket,
     exit: Arc<AtomicBool>,
-    packet_batch_sender: &PacketBatchSender,
+    packet_batch_sender: &MyPacketBatchSender,
     recycler: &PacketBatchRecycler,
     stats: &StreamerReceiveStats,
     options: ReceiverOptions,
@@ -347,24 +347,12 @@ fn recv_loop(
 
                     packets_count.fetch_add(len, Ordering::Relaxed);
                     packet_batches_count.fetch_add(1, Ordering::Relaxed);
-                    max_channel_len.fetch_max(packet_batch_sender.len(), Ordering::Relaxed);
+                    max_channel_len.fetch_max(packet_batch_sender.batch_count(), Ordering::Relaxed);
                     if len == PACKETS_PER_BATCH {
                         full_packet_batches_count.fetch_add(1, Ordering::Relaxed);
                     }
 
-                    match packet_batch_sender.try_send(packet_batch) {
-                        Ok(_) => {}
-                        Err(TrySendError::Full(unsent_batch)) => {
-                            dropped_batches_count.fetch_add(1, Ordering::Relaxed);
-                            // reuse the memory
-                            packet_batch = unsent_batch;
-                            packet_batch.packets.truncate(0);
-                            continue;
-                        }
-                        Err(TrySendError::Disconnected(unsent_batch)) => {
-                            return Err(SendError(unsent_batch).into());
-                        }
-                    }
+                    packet_batch_sender.send_batch(packet_batch)?;
                 }
                 break;
             }
@@ -375,7 +363,7 @@ fn recv_loop(
 pub fn receiver(
     socket: Arc<UdpSocket>,
     exit: Arc<AtomicBool>,
-    packet_batch_sender: PacketBatchSender,
+    packet_batch_sender: MyPacketBatchSender,
     recycler: PacketBatchRecycler,
     stats: Arc<StreamerReceiveStats>,
     options: ReceiverOptions,
