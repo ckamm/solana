@@ -259,7 +259,7 @@ impl AncestorHashesService {
         let mut total_packets = 0;
         packet_batches.retain(|batch| {
             total_packets += batch.packets.len();
-            if(packet_threshold.should_drop(total_packets)) {
+            if packet_threshold.should_drop(total_packets) {
                 dropped_packets += batch.packets.len();
                 false
             } else {
