@@ -332,7 +332,6 @@ fn recv_loop(
                     let StreamerReceiveStats {
                         packets_count,
                         packet_batches_count,
-                        _dropped_batches_count,
                         full_packet_batches_count,
                         max_channel_len,
                         ..
