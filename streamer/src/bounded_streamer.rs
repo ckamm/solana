@@ -251,9 +251,9 @@ pub fn packet_batch_channel(
 mod test {
     use {
         crate::{
-            bounded_streamer::{packet_batch_channel, BoundedPacketBatchSender, BoundedPacketBatchReceiver},
+            bounded_streamer::{packet_batch_channel},
         },
-        solana_perf::packet::{Packet, PacketBatch, PACKET_DATA_SIZE},
+        solana_perf::packet::{Packet, PacketBatch},
     };
 
     #[test]
@@ -268,6 +268,6 @@ mod test {
         }
 
         sender.send_batch(packet_batch);
-        (batches, packets) = receiver.recv()?;
+        let (batches, packets) = receiver.recv()?;
     }
 }

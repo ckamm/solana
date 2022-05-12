@@ -601,7 +601,7 @@ pub fn spawn_server(
 
 #[cfg(test)]
 mod test {
-    use crate::bounded_streamer::BoundedPacketBatchReceiver;
+    use crate::bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver};
 
     use {
         super::*,
@@ -735,7 +735,7 @@ mod test {
         solana_logger::setup();
         let s = UdpSocket::bind("127.0.0.1:0").unwrap();
         let exit = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = unbounded();
+        let (sender, receiver) = packet_batch_channel(10_000, 10_000);
         let keypair = Keypair::new();
         let ip = "127.0.0.1".parse().unwrap();
         let server_address = s.local_addr().unwrap();
@@ -852,7 +852,9 @@ mod test {
         while now.elapsed().as_secs() < 5 {
             if let Ok((batches, packets)) = receiver.recv_timeout(Duration::from_secs(1)) {
                 total_packets += packets;
-                all_packets.push(packets)
+                for batch in batches {
+                    all_packets.push(batch)
+                }
             }
             if total_packets > num_expected_packets {
                 break;

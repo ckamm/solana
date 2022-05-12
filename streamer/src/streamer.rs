@@ -410,6 +410,7 @@ mod test {
         crate::{
             packet::{Packet, PacketBatch, PACKET_DATA_SIZE},
             streamer::{receiver, responder},
+            bounded_streamer::{BoundedPacketBatchReceiver, packet_batch_channel},
         },
         crossbeam_channel::unbounded,
         solana_perf::recycler::Recycler,
@@ -425,14 +426,14 @@ mod test {
         },
     };
 
-    fn get_packet_batches(r: PacketBatchReceiver, num_packets: &mut usize) {
+    fn get_packet_batches(r: BoundedPacketBatchReceiver, num_packets: &mut usize) {
         for _ in 0..10 {
-            let packet_batch_res = r.recv_timeout(Duration::new(1, 0));
-            if packet_batch_res.is_err() {
-                continue;
+            match r.recv_timeout(Duration::new(1, 0)) {
+                Ok((batches, packets)) => {
+                    *num_packets -= packets;
+                }
+                Err(err) => continue,
             }
-
-            *num_packets -= packet_batch_res.unwrap().packets.len();
 
             if *num_packets == 0 {
                 break;
@@ -453,7 +454,7 @@ mod test {
         let addr = read.local_addr().unwrap();
         let send = UdpSocket::bind("127.0.0.1:0").expect("bind");
         let exit = Arc::new(AtomicBool::new(false));
-        let (s_reader, r_reader) = unbounded();
+        let (s_reader, r_reader) = packet_batch_channel(10_000, 10_000);
         let stats = Arc::new(StreamerReceiveStats::new("test"));
         let t_receiver = receiver(
             Arc::new(read),
