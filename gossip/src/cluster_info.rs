@@ -71,7 +71,7 @@ use {
     solana_streamer::{
         packet,
         socket::SocketAddrSpace,
-        streamer::{MyPacketBatchReceiver, MyPacketBatchSender, PacketBatchReceiver, PacketBatchSender},
+        streamer::{MyPacketBatchReceiver, MyPacketBatchSender},
     },
     solana_vote_program::vote_state::MAX_LOCKOUT_HISTORY,
     std::{
