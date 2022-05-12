@@ -24,7 +24,7 @@ use {
         optimistically_confirmed_bank_tracker::{BankNotification, BankNotificationSender},
         rpc_subscriptions::RpcSubscriptions,
     },
-    solana_streamer::streamer::BoundedPacketBatchSender,
+    solana_streamer::bounded_streamer::BoundedPacketBatchSender,
     solana_runtime::{
         bank::Bank,
         bank_forks::BankForks,

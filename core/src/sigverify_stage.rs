@@ -16,7 +16,10 @@ use {
         sigverify::{count_valid_packets, shrink_batches, Deduper},
     },
     solana_sdk::timing,
-    solana_streamer::streamer::{StreamerError, BoundedPacketBatchSender},
+    solana_streamer::{
+        streamer::{StreamerError},
+        bounded_streamer::{BoundedPacketBatchSender},
+    },
     std::{
         thread::{self, Builder, JoinHandle},
         time::Instant,

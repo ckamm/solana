@@ -2,28 +2,14 @@
 //!
 
 use {
-    crate::{
-        packet::{self, PacketBatch, PacketBatchRecycler, PACKETS_PER_BATCH},
-        sendmmsg::{batch_send, SendPktsError},
-        socket::SocketAddrSpace,
-    },
+    crate::{packet::{PacketBatch}},
     crossbeam_channel::{Receiver, RecvTimeoutError, SendError, RecvError, Sender},
-    histogram::Histogram,
-    solana_sdk::{packet::Packet, timing::timestamp},
     std::collections::VecDeque,
     std::sync::RwLock,
     std::{
-        cmp::Reverse,
-        collections::HashMap,
-        net::{IpAddr, UdpSocket},
-        sync::{
-            atomic::{AtomicBool, AtomicUsize, Ordering},
-            Arc,
-        },
-        thread::{Builder, JoinHandle},
+        sync::{Arc},
         time::{Duration, Instant},
     },
-    thiserror::Error,
 };
 
 struct PacketBatchChannelData {

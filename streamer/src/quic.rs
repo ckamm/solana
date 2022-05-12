@@ -1,5 +1,5 @@
 use {
-    crate::streamer::BoundedPacketBatchSender,
+    crate::bounded_streamer::BoundedPacketBatchSender,
     futures_util::stream::StreamExt,
     pem::Pem,
     pkcs8::{der::Document, AlgorithmIdentifier, ObjectIdentifier},
