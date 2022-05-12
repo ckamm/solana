@@ -2148,7 +2148,7 @@ where
 mod tests {
     use {
         super::*,
-        crossbeam_channel::{unbounded, Receiver as CrossbeamReceiver},
+        crossbeam_channel::{unbounded, Receiver, Receiver as CrossbeamReceiver},
         itertools::Itertools,
         solana_address_lookup_table_program::state::{AddressLookupTable, LookupTableMeta},
         solana_entry::entry::{next_entry, next_versioned_entry, Entry, EntrySlice},
@@ -2392,7 +2392,7 @@ mod tests {
                 .collect();
             let packet_batches = convert_from_old_verified(packet_batches);
             verified_sender // no_ver, anf, tx
-                .send(packet_batches)
+                .send_batches(packet_batches)
                 .unwrap();
 
             drop(verified_sender);
@@ -2464,7 +2464,7 @@ mod tests {
             .map(|batch| (batch, vec![1u8]))
             .collect();
         let packet_batches = convert_from_old_verified(packet_batches);
-        verified_sender.send(packet_batches).unwrap();
+        verified_sender.send_batches(packet_batches).unwrap();
 
         // Process a second batch that uses the same from account, so conflicts with above TX
         let tx =

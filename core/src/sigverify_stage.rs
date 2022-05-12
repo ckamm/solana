@@ -388,7 +388,6 @@ mod tests {
     use {
         super::*,
         crate::{sigverify::TransactionSigVerifier, sigverify_stage::timing::duration_as_ms},
-        crossbeam_channel::unbounded,
         solana_perf::{
             packet::{to_packet_batches, Packet},
             test_tx::test_tx,
