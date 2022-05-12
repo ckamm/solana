@@ -258,22 +258,31 @@ mod test {
 
     #[test]
     fn bounded_streamer_test() {
-        let NUM_PACKETS = 10;
+        let num_packets = 10;
         let (sender, receiver) = packet_batch_channel(5, 10);
         
         let mut packet_batch = PacketBatch::default();
-        for i in 0..NUM_PACKETS {
+        for _i in 0..num_packets {
             let p = Packet::default();
             packet_batch.packets.push(p);
         }
 
-        sender.send_batch(packet_batch);
-        match receiver.recv() {
-            Ok((batches, packets)) => {
-                assert_eq!(packets, NUM_PACKETS);
-                println!("PASS!");
+        println!("Sending batch");
+        match sender.send_batch(packet_batch) {
+            Ok() => {
+                println!("Send success!");
             }
             Err(err) => {
+                println!("Send Fail!");
+            }
+        }
+        println!("Sent batch");
+        match receiver.recv() {
+            Ok((_batches, packets)) => {
+                assert_eq!(packets, num_packets);
+                println!("PASS!");
+            }
+            Err(_err) => {
                 println!("Error!");
             }
         }

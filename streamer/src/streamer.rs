@@ -429,10 +429,10 @@ mod test {
     fn get_packet_batches(r: BoundedPacketBatchReceiver, num_packets: &mut usize) {
         for _ in 0..10 {
             match r.recv_timeout(Duration::new(1, 0)) {
-                Ok((batches, packets)) => {
+                Ok((_batches, packets)) => {
                     *num_packets -= packets;
                 }
-                Err(err) => continue,
+                Err(_err) => continue,
             }
 
             if *num_packets == 0 {
