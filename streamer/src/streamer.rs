@@ -91,7 +91,7 @@ impl MyPacketBatchReceiver {
     }
 
     fn try_recv(&self) -> Option<(Vec<PacketBatch>, usize, Duration)> {
-        let (recv_data, packets, has_more) = {
+        let (recv_data, packets, _has_more) = {
             let mut locked_data = self.data.write().unwrap();
 
             let mut batches = 0;
