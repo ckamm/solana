@@ -94,7 +94,7 @@ impl FetchStage {
             packet.meta.flags |= PacketFlags::FORWARDED;
         };
 
-        let (mut packet_batches, num_packets) = recvr.recv_default_timeout()?;
+        let (mut packet_batches, num_packets) = recvr.recv()?;
         packet_batches.iter_mut().for_each(|batch| {
             batch.packets.iter_mut().for_each(mark_forwarded);
         });

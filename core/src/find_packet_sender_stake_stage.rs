@@ -123,7 +123,6 @@ impl FindPacketSenderStakeStage {
                             send_batches_time.stop();
 
                             stats.max_out_queue = std::cmp::max(stats.max_out_queue, sender.batch_count());
-
                             stats.apply_sender_stakes_time = stats
                                 .apply_sender_stakes_time
                                 .saturating_add(apply_sender_stakes_time.as_us());

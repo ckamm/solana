@@ -61,6 +61,25 @@ impl BoundedPacketBatchReceiver {
         }
     }
 
+    pub fn recv_until_empty_timeout_or_max_packets(
+        &self,
+        recv_timeout: Duration,
+        batching_timeout: Duration,
+        batch_size_upperbound: usize,
+    ) -> Result<Vec<PacketBatch>, RecvTimeoutError> {
+        let start = Instant::now();
+        let (mut packet_batches, _) = self.recv_timeout(recv_timeout)?;
+        while let Ok(packet_batch) = self.try_recv() {
+            trace!("got more packets");
+            packet_batches.extend(packet_batch);
+            if start.elapsed() >= batching_timeout || packet_batches.len() >= batch_size_upperbound
+            {
+                break;
+            }
+        }
+        Ok(packet_batches)
+    }
+
     pub fn recv(&self) -> Result<(Vec<PacketBatch>, usize), RecvError> {
         loop {
             return match self.receiver.recv() {
@@ -77,7 +96,7 @@ impl BoundedPacketBatchReceiver {
     }
 
     fn try_recv(&self) -> Option<(Vec<PacketBatch>, usize)> {
-        let (recv_data, packets, _has_more) = {
+        let (recv_data, packets) = {
             let mut locked_data = self.data.write().unwrap();
 
             let mut batches = 0;
@@ -94,11 +113,9 @@ impl BoundedPacketBatchReceiver {
                 return None;
             }
             locked_data.sub_packet_count(packets);
-            let has_more = batches < locked_data.queue.len();
             (
                 locked_data.queue.drain(0..batches).collect::<Vec<_>>(),
                 packets,
-                has_more,
             )
         };
 

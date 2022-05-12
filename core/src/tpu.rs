@@ -48,7 +48,7 @@ pub const DEFAULT_TPU_COALESCE_MS: u64 = 5;
 /// fetch stage.
 ///
 /// 10k batches means up to 1.3M packets, roughly 1.6GB of memory
-pub const DEFAULT_TPU_MAX_QUEUED_BATCHES_UDP: usize = 1000000;
+pub const DEFAULT_TPU_MAX_QUEUED_BATCHES_UDP: usize = 10_000;
 
 /// Timeout interval when joining threads during TPU close
 const TPU_THREADS_JOIN_TIMEOUT_SECONDS: u64 = 10;
@@ -101,7 +101,7 @@ impl Tpu {
         replay_vote_sender: ReplayVoteSender,
         bank_notification_sender: Option<BankNotificationSender>,
         tpu_coalesce_ms: u64,
-        _tpu_max_queued_batches_udp: usize,
+        tpu_max_queued_batches_udp: usize,
         cluster_confirmed_slot_sender: GossipDuplicateConfirmedSlotsSender,
         cost_model: &Arc<RwLock<CostModel>>,
         keypair: &Keypair,
@@ -114,9 +114,9 @@ impl Tpu {
             transactions_quic: transactions_quic_sockets,
         } = sockets;
 
-        let (udp_packet_sender, udp_packet_receiver) = packet_batch_channel(100_000, 10_000);
+        let (udp_packet_sender, udp_packet_receiver) = packet_batch_channel(100_000, tpu_max_queued_batches_udp);
         let (udp_vote_packet_sender, udp_vote_packet_receiver) =
-            packet_batch_channel(100_000, 10_000);
+            packet_batch_channel(100_000, tpu_max_queued_batches_udp);
         let fetch_stage = FetchStage::new_with_sender(
             transactions_sockets,
             tpu_forwards_sockets,
@@ -129,7 +129,7 @@ impl Tpu {
         );
 
         let (udp_find_packet_sender_stake_sender, udp_find_packet_sender_stake_receiver) =
-            packet_batch_channel(100_000, 10_000);
+            packet_batch_channel(100_000, tpu_max_queued_batches_udp);
 
         let udp_find_packet_sender_stake_stage = FindPacketSenderStakeStage::new(
             udp_packet_receiver,
@@ -140,7 +140,7 @@ impl Tpu {
         );
 
         let (udp_vote_find_packet_sender_stake_sender, udp_vote_find_packet_sender_stake_receiver) =
-            packet_batch_channel(100_000, 10_000);
+            packet_batch_channel(100_000, tpu_max_queued_batches_udp);
 
         let udp_vote_find_packet_sender_stake_stage = FindPacketSenderStakeStage::new(
             udp_vote_packet_receiver,
@@ -204,7 +204,7 @@ impl Tpu {
             )
         };
 
-        let (verified_tpu_vote_packets_sender, verified_tpu_vote_packets_receiver) = packet_batch_channel(10_000, 10_000);
+        let (verified_tpu_vote_packets_sender, verified_tpu_vote_packets_receiver) = packet_batch_channel(50_000, 50_000);
 
         let udp_vote_sigverify_stage = {
             let verifier = TransactionSigVerifier::new_reject_non_vote();
