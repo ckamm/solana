@@ -601,6 +601,8 @@ pub fn spawn_server(
 
 #[cfg(test)]
 mod test {
+    use crate::bounded_streamer::BoundedPacketBatchReceiver;
+
     use {
         super::*,
         crossbeam_channel::unbounded,
@@ -798,12 +800,12 @@ mod test {
     fn setup_quic_server() -> (
         std::thread::JoinHandle<()>,
         Arc<AtomicBool>,
-        crossbeam_channel::Receiver<PacketBatch>,
+        BoundedPacketBatchReceiver,
         SocketAddr,
     ) {
         let s = UdpSocket::bind("127.0.0.1:0").unwrap();
         let exit = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = unbounded();
+        let (sender, receiver) = packet_batch_channel(10_000, 10_000);
         let keypair = Keypair::new();
         let ip = "127.0.0.1".parse().unwrap();
         let server_address = s.local_addr().unwrap();
@@ -848,8 +850,8 @@ mod test {
         let now = Instant::now();
         let mut total_packets = 0;
         while now.elapsed().as_secs() < 5 {
-            if let Ok(packets) = receiver.recv_timeout(Duration::from_secs(1)) {
-                total_packets += packets.packets.len();
+            if let Ok((batches, packets)) = receiver.recv_timeout(Duration::from_secs(1)) {
+                total_packets += packets;
                 all_packets.push(packets)
             }
             if total_packets > num_expected_packets {
