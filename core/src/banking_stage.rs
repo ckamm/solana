@@ -2148,7 +2148,7 @@ where
 mod tests {
     use {
         super::*,
-        crossbeam_channel::{unbounded, Receiver, Receiver as CrossbeamReceiver},
+        crossbeam_channel::{unbounded, Receiver},
         itertools::Itertools,
         solana_address_lookup_table_program::state::{AddressLookupTable, LookupTableMeta},
         solana_entry::entry::{next_entry, next_versioned_entry, Entry, EntrySlice},
@@ -2183,9 +2183,7 @@ mod tests {
             },
         },
         solana_streamer::{
-            bounded_streamer::packet_batch_channel,
-            recvmmsg::recv_mmsg,
-            socket::SocketAddrSpace
+            bounded_streamer::packet_batch_channel, recvmmsg::recv_mmsg, socket::SocketAddrSpace,
         },
         solana_transaction_status::{TransactionStatusMeta, VersionedTransactionWithStatusMeta},
         solana_vote_program::vote_transaction,
@@ -2212,7 +2210,8 @@ mod tests {
         let genesis_config = create_genesis_config(2).genesis_config;
         let bank = Arc::new(Bank::new_no_wallclock_throttle_for_tests(&genesis_config));
         let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
-        let (gossip_verified_vote_sender, gossip_verified_vote_receiver) = packet_batch_channel(10_000, 10_000);
+        let (gossip_verified_vote_sender, gossip_verified_vote_receiver) =
+            packet_batch_channel(10_000, 10_000);
         let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
@@ -2272,7 +2271,8 @@ mod tests {
                 create_test_recorder(&bank, &blockstore, Some(poh_config), None);
             let cluster_info = new_test_cluster_info(Node::new_localhost().info);
             let cluster_info = Arc::new(cluster_info);
-            let (verified_gossip_vote_sender, verified_gossip_vote_receiver) = packet_batch_channel(10_000, 10_000);
+            let (verified_gossip_vote_sender, verified_gossip_vote_receiver) =
+                packet_batch_channel(10_000, 10_000);
             let (gossip_vote_sender, _gossip_vote_receiver) = unbounded();
 
             let banking_stage = BankingStage::new(
@@ -2331,7 +2331,8 @@ mod tests {
         let start_hash = bank.last_blockhash();
         let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
         let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
-        let (gossip_verified_vote_sender, gossip_verified_vote_receiver) = packet_batch_channel(10_000, 10_000);
+        let (gossip_verified_vote_sender, gossip_verified_vote_receiver) =
+            packet_batch_channel(10_000, 10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
             let blockstore = Arc::new(
