@@ -86,7 +86,7 @@ impl ShredFetchStage {
         let mut stats = ShredFetchStats::default();
         let mut packet_hasher = PacketHasher::default();
 
-        while let Ok((mut packet_batches, _, _)) = recvr.recv() {
+        while let Ok((mut packet_batches, _)) = recvr.recv() {
             if last_updated.elapsed().as_millis() as u64 > DEFAULT_MS_PER_SLOT {
                 last_updated = Instant::now();
                 packet_hasher.reset();

@@ -4,10 +4,10 @@
 use {
     crate::{packet::{PacketBatch}},
     crossbeam_channel::{Receiver, RecvTimeoutError, SendError, RecvError, Sender},
-    std::collections::VecDeque,
-    std::sync::RwLock,
     std::{
-        sync::{Arc},
+        collections::VecDeque,
+        result::Result,
+        sync::{Arc, RwLock},
         time::{Duration, Instant},
     },
 };
@@ -45,7 +45,7 @@ impl BoundedPacketBatchReceiver {
     pub fn recv_timeout(
         &self,
         timeout: Duration,
-    ) -> std::result::Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
+    ) -> Result<(Vec<PacketBatch>, usize), RecvTimeoutError> {
         let deadline = Instant::now() + timeout;
         loop {
             return match self.receiver.recv_deadline(deadline) {
@@ -61,7 +61,7 @@ impl BoundedPacketBatchReceiver {
         }
     }
 
-    pub fn recv(&self) -> std::result::Result<(Vec<PacketBatch>, usize, Duration), RecvError> {
+    pub fn recv(&self) -> Result<(Vec<PacketBatch>, usize), RecvError> {
         loop {
             return match self.receiver.recv() {
                 Ok(()) => {
@@ -76,7 +76,7 @@ impl BoundedPacketBatchReceiver {
         }
     }
 
-    fn try_recv(&self) -> Option<(Vec<PacketBatch>, usize, Duration)> {
+    fn try_recv(&self) -> Option<(Vec<PacketBatch>, usize)> {
         let (recv_data, packets, _has_more) = {
             let mut locked_data = self.data.write().unwrap();
 
@@ -102,12 +102,20 @@ impl BoundedPacketBatchReceiver {
             )
         };
 
-        Some((recv_data, packets, Duration::ZERO))
+        Some((recv_data, packets))
     }
 
-    pub fn recv_default_timeout(&self) -> std::result::Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
+    pub fn recv_default_timeout(&self) -> Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
         let timer = Duration::new(1, 0);
         self.recv_timeout(timer)
+    }
+
+    pub fn recv_duration_default_timeout(&self) -> Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
+        let now = Instant::now();
+        match self.recv_default_timeout() {
+            Ok((batches, packets)) => Ok((batches, packets, now.elapsed())),
+            Err(err) => Err(err)
+        }
     }
 
     pub fn batch_count(&self) -> usize {
@@ -121,7 +129,7 @@ impl BoundedPacketBatchReceiver {
 
 impl BoundedPacketBatchSender {
     // Ok(true) means an existing batch was discarded
-    pub fn send_batch(&self, batch: PacketBatch) -> std::result::Result<bool, SendError<()>> {
+    pub fn send_batch(&self, batch: PacketBatch) -> Result<bool, SendError<()>> {
         if batch.packets.len() == 0 {
             return Ok(false);
         }

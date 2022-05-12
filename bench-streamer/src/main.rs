@@ -50,7 +50,7 @@ fn sink(exit: Arc<AtomicBool>, rvs: Arc<AtomicUsize>, r: BoundedPacketBatchRecei
         }
         let timer = Duration::new(1, 0);
         if let Ok(recv_response) = r.recv_timeout(timer) {
-            let (packet_batch, _, _) = recv_response;
+            let (packet_batch, _) = recv_response;
             let mut packets = 0;
             for batch in packet_batch.iter() {
                 packets += batch.packets.len();

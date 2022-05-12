@@ -253,7 +253,7 @@ impl AncestorHashesService {
         retryable_slots_sender: &RetryableSlotsSender,
     ) -> Result<()> {
         let timeout = Duration::new(1, 0);
-        let (mut packet_batches, _, _) = response_receiver.recv_timeout(timeout)?;
+        let (mut packet_batches, _) = response_receiver.recv_timeout(timeout)?;
 
         let dropped_packets = 0;
         let mut total_packets = 0;

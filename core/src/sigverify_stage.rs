@@ -242,7 +242,7 @@ impl SigVerifyStage {
         verifier: &T,
         stats: &mut SigVerifierStats,
     ) -> Result<()> {
-        let (mut batches, num_packets, recv_duration) = recvr.recv_default_timeout().map_err(StreamerError::from)?;
+        let (mut batches, num_packets, recv_duration) = recvr.recv_duration_default_timeout().map_err(StreamerError::from)?;
 
         let batches_len = batches.len();
         debug!(

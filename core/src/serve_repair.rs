@@ -329,7 +329,7 @@ impl ServeRepair {
     ) -> Result<()> {
         //TODO cache connections
         let timeout = Duration::new(1, 0);
-        let (mut reqs_v, _, _) = requests_receiver.recv_timeout(timeout)?;
+        let (mut reqs_v, _) = requests_receiver.recv_timeout(timeout)?;
 
         let dropped_packets = 0;
         let mut total_packets = 0;
