@@ -269,7 +269,7 @@ mod test {
 
         println!("Sending batch");
         match sender.send_batch(packet_batch) {
-            Ok() => {
+            Ok(_x) => {
                 println!("Send success!");
             }
             Err(err) => {
