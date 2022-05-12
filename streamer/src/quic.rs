@@ -1,6 +1,5 @@
 use {
     crate::streamer::MyPacketBatchSender,
-    crossbeam_channel::Sender,
     futures_util::stream::StreamExt,
     pem::Pem,
     pkcs8::{der::Document, AlgorithmIdentifier, ObjectIdentifier},

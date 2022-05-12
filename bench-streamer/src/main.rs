@@ -5,7 +5,7 @@ use {
     crossbeam_channel::unbounded,
     solana_streamer::{
         packet::{Packet, PacketBatch, PacketBatchRecycler, PACKET_DATA_SIZE},
-        streamer::{receiver, PacketBatchReceiver, ReceiverOptions, StreamerReceiveStats},
+        streamer::{receiver, my_packet_batch_channel, PacketBatchReceiver, StreamerReceiveStats},
     },
     std::{
         cmp::max,
@@ -103,7 +103,8 @@ fn main() -> Result<()> {
         read.set_read_timeout(Some(Duration::new(1, 0))).unwrap();
 
         addr = read.local_addr().unwrap();
-        let (s_reader, r_reader) = unbounded();
+        let (s_reader, r_reader) = my_packet_batch_channel(1024, 10_000);
+        
         read_channels.push(r_reader);
         read_threads.push(receiver(
             Arc::new(read),

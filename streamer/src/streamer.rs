@@ -7,7 +7,7 @@ use {
         sendmmsg::{batch_send, SendPktsError},
         socket::SocketAddrSpace,
     },
-    crossbeam_channel::{Receiver, RecvTimeoutError, SendError, RecvError, Sender, TrySendError},
+    crossbeam_channel::{Receiver, RecvTimeoutError, SendError, RecvError, Sender},
     histogram::Histogram,
     solana_sdk::{packet::Packet, timing::timestamp},
     std::collections::VecDeque,
@@ -36,7 +36,6 @@ struct MyPacketBatchChannelData {
 #[derive(Clone)]
 pub struct MyPacketBatchReceiver {
     receiver: Receiver<()>,
-    sender: Sender<()>,
     data: Arc<RwLock<MyPacketBatchChannelData>>,
 }
 
@@ -116,12 +115,6 @@ impl MyPacketBatchReceiver {
                 has_more,
             )
         };
-
-        // if there's more data than this consumer could handle,
-        // send the flag to wake another consumer
-        if has_more {
-            self.sender.send(()); // TODO: handle error?
-        }
 
         Some((recv_data, packets, Duration::ZERO))
     }
@@ -229,7 +222,6 @@ pub fn my_packet_batch_channel(work_unit_packet_size: usize, max_queued_batches:
         data: data.clone(),
     };
     let receiver = MyPacketBatchReceiver {
-        sender: sig_sender,
         receiver: sig_receiver,
         data: data,
     };
@@ -340,7 +332,7 @@ fn recv_loop(
                     let StreamerReceiveStats {
                         packets_count,
                         packet_batches_count,
-                        dropped_batches_count,
+                        _dropped_batches_count,
                         full_packet_batches_count,
                         max_channel_len,
                         ..
