@@ -50,7 +50,11 @@ fn sink(exit: Arc<AtomicBool>, rvs: Arc<AtomicUsize>, r: MyPacketBatchReceiver) 
         let timer = Duration::new(1, 0);
         if let Ok(recv_response) = r.recv_timeout(timer) {
             let (packet_batch, _, _) = recv_response;
-            rvs.fetch_add(packet_batch.iter().map(packets).sum(), Ordering::Relaxed);
+            let packets = 0;
+            for batch in packet_batch.iter() {
+                packets += batch.packets.len();
+            }
+            rvs.fetch_add(packets, Ordering::Relaxed);
         }
     })
 }
