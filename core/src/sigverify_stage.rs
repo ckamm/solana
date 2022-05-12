@@ -393,6 +393,7 @@ mod tests {
             packet::{to_packet_batches, Packet},
             test_tx::test_tx,
         },
+        solana_streamer::bounded_streamer::packet_batch_channel,
     };
 
     fn count_non_discard(packet_batches: &[PacketBatch]) -> usize {
@@ -440,8 +441,8 @@ mod tests {
     fn test_sigverify_stage() {
         solana_logger::setup();
         trace!("start");
-        let (packet_s, packet_r) = unbounded();
-        let (verified_s, verified_r) = unbounded();
+        let (packet_s, packet_r) = packet_batch_channel(10_000, 10_000);
+        let (verified_s, verified_r) = packet_batch_channel(10_000, 10_000);
         let verifier = TransactionSigVerifier::default();
         let stage = SigVerifyStage::new(packet_r, verified_s, verifier, "test");
 
@@ -458,13 +459,13 @@ mod tests {
         for _ in 0..batches.len() {
             if let Some(batch) = batches.pop() {
                 sent_len += batch.packets.len();
-                packet_s.send(vec![batch]).unwrap();
+                packet_s.send_batch(batch).unwrap();
             }
         }
         let mut received = 0;
         trace!("sent: {}", sent_len);
         loop {
-            if let Ok(mut verifieds) = verified_r.recv_timeout(Duration::from_millis(10)) {
+            if let Ok((mut verifieds, _)) = verified_r.recv_timeout(Duration::from_millis(10)) {
                 while let Some(v) = verifieds.pop() {
                     received += v.packets.len();
                     batches.push(v);

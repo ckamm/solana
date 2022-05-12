@@ -699,7 +699,7 @@ mod test {
         solana_ledger::{blockstore::make_many_slot_entries, get_tmp_ledger_path},
         solana_runtime::{accounts_background_service::AbsRequestSender, bank_forks::BankForks},
         solana_sdk::{hash::Hash, signature::Keypair},
-        solana_streamer::socket::SocketAddrSpace,
+        solana_streamer::{socket::SocketAddrSpace, streamer::PacketBatchReceiver},
         std::collections::HashMap,
         trees::tr,
     };
@@ -893,7 +893,7 @@ mod test {
             // Set up thread to give us responses
             let ledger_path = get_tmp_ledger_path!();
             let exit = Arc::new(AtomicBool::new(false));
-            let (requests_sender, requests_receiver) = unbounded();
+            let (requests_sender, requests_receiver) = packet_batch_channel(10_000, 10_000);
             let (response_sender, response_receiver) = unbounded();
 
             // Set up blockstore for responses
