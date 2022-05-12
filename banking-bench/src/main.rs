@@ -243,7 +243,7 @@ fn main() {
     let (verified_sender, verified_receiver) = my_packet_batch_channel(1024, 10_000);
     let (vote_sender, vote_receiver) = my_packet_batch_channel(1024, 10_000);
     let (tpu_vote_sender, tpu_vote_receiver) = my_packet_batch_channel(1024, 10_000);
-    let (replay_vote_sender, _replay_vote_receiver) = my_packet_batch_channel(1024, 10_000);
+    let (replay_vote_sender, _replay_vote_receiver) = unbounded();
     let bank0 = Bank::new_for_benches(&genesis_config);
     let mut bank_forks = BankForks::new(bank0);
     let mut bank = bank_forks.working_bank();

@@ -10,7 +10,7 @@ use {
         qos_service::QosService,
         unprocessed_packet_batches::{self, *},
     },
-    crossbeam_channel::{Receiver as CrossbeamReceiver, RecvTimeoutError},
+    crossbeam_channel::{RecvTimeoutError},
     histogram::Histogram,
     itertools::Itertools,
     min_max_heap::MinMaxHeap,
