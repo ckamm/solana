@@ -2,8 +2,8 @@
 //!
 
 use {
-    crate::{packet::{PacketBatch}},
-    crossbeam_channel::{Receiver, RecvTimeoutError, SendError, RecvError, Sender},
+    crate::packet::PacketBatch,
+    crossbeam_channel::{Receiver, RecvError, RecvTimeoutError, SendError, Sender},
     std::{
         collections::VecDeque,
         result::Result,
@@ -57,7 +57,7 @@ impl BoundedPacketBatchReceiver {
                     }
                 }
                 Err(err) => Err(err),
-            }
+            };
         }
     }
 
@@ -91,7 +91,7 @@ impl BoundedPacketBatchReceiver {
                     }
                 }
                 Err(err) => Err(err),
-            }
+            };
         }
     }
 
@@ -127,11 +127,13 @@ impl BoundedPacketBatchReceiver {
         self.recv_timeout(timer)
     }
 
-    pub fn recv_duration_default_timeout(&self) -> Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
+    pub fn recv_duration_default_timeout(
+        &self,
+    ) -> Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
         let now = Instant::now();
         match self.recv_default_timeout() {
             Ok((batches, packets)) => Ok((batches, packets, now.elapsed())),
-            Err(err) => Err(err)
+            Err(err) => Err(err),
         }
     }
 
@@ -173,7 +175,10 @@ impl BoundedPacketBatchSender {
     }
 
     // Ok(n) means that n batches were discarded
-    pub fn send_batches(&self, batches: Vec<PacketBatch>) -> std::result::Result<usize, SendError<()>> {
+    pub fn send_batches(
+        &self,
+        batches: Vec<PacketBatch>,
+    ) -> std::result::Result<usize, SendError<()>> {
         if batches.len() == 0 {
             return Ok(0);
         }
@@ -220,7 +225,10 @@ impl BoundedPacketBatchSender {
     }
 }
 
-pub fn packet_batch_channel(batches_batch_size: usize, max_queued_batches: usize) -> (BoundedPacketBatchSender, BoundedPacketBatchReceiver) {
+pub fn packet_batch_channel(
+    batches_batch_size: usize,
+    max_queued_batches: usize,
+) -> (BoundedPacketBatchSender, BoundedPacketBatchReceiver) {
     let (sig_sender, sig_receiver) = crossbeam_channel::unbounded::<()>();
     let data = Arc::new(RwLock::new(PacketBatchChannelData {
         queue: VecDeque::new(),

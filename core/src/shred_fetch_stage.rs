@@ -12,8 +12,10 @@ use {
     solana_runtime::bank_forks::BankForks,
     solana_sdk::clock::{Slot, DEFAULT_MS_PER_SLOT},
     solana_streamer::{
+        bounded_streamer::{
+            packet_batch_channel, BoundedPacketBatchReceiver, BoundedPacketBatchSender,
+        },
         streamer::{self, StreamerReceiveStats},
-        bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver, BoundedPacketBatchSender},
     },
     std::{
         net::UdpSocket,

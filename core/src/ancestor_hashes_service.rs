@@ -24,8 +24,8 @@ use {
         timing::timestamp,
     },
     solana_streamer::{
-        streamer::{self, StreamerReceiveStats},
         bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
+        streamer::{self, StreamerReceiveStats},
     },
     std::{
         collections::HashSet,

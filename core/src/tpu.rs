@@ -30,7 +30,7 @@ use {
     },
     solana_sdk::signature::Keypair,
     solana_streamer::{
-        bounded_streamer::{packet_batch_channel},
+        bounded_streamer::packet_batch_channel,
         quic::{spawn_server, MAX_STAKED_CONNECTIONS, MAX_UNSTAKED_CONNECTIONS},
     },
     std::{
@@ -114,7 +114,8 @@ impl Tpu {
             transactions_quic: transactions_quic_sockets,
         } = sockets;
 
-        let (udp_packet_sender, udp_packet_receiver) = packet_batch_channel(100_000, tpu_max_queued_batches_udp);
+        let (udp_packet_sender, udp_packet_receiver) =
+            packet_batch_channel(100_000, tpu_max_queued_batches_udp);
         let (udp_vote_packet_sender, udp_vote_packet_receiver) =
             packet_batch_channel(100_000, tpu_max_queued_batches_udp);
         let fetch_stage = FetchStage::new_with_sender(
@@ -204,7 +205,8 @@ impl Tpu {
             )
         };
 
-        let (verified_tpu_vote_packets_sender, verified_tpu_vote_packets_receiver) = packet_batch_channel(50_000, 50_000);
+        let (verified_tpu_vote_packets_sender, verified_tpu_vote_packets_receiver) =
+            packet_batch_channel(50_000, 50_000);
 
         let udp_vote_sigverify_stage = {
             let verifier = TransactionSigVerifier::new_reject_non_vote();

@@ -3,7 +3,7 @@
 
 use {
     crate::{
-        bounded_streamer::{BoundedPacketBatchSender},
+        bounded_streamer::BoundedPacketBatchSender,
         packet::{self, PacketBatch, PacketBatchRecycler, PACKETS_PER_BATCH},
         sendmmsg::{batch_send, SendPktsError},
         socket::SocketAddrSpace,

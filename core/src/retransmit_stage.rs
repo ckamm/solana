@@ -32,8 +32,8 @@ use {
     solana_runtime::{bank::Bank, bank_forks::BankForks},
     solana_sdk::{clock::Slot, epoch_schedule::EpochSchedule, pubkey::Pubkey, timing::timestamp},
     solana_streamer::{
+        bounded_streamer::BoundedPacketBatchReceiver,
         sendmmsg::{multi_target_send, SendPktsError},
-        bounded_streamer::{BoundedPacketBatchReceiver},
     },
     std::{
         collections::{BTreeSet, HashMap, HashSet},

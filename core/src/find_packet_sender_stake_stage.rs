@@ -1,5 +1,5 @@
 use {
-    crossbeam_channel::{RecvTimeoutError},
+    crossbeam_channel::RecvTimeoutError,
     lazy_static::lazy_static,
     rayon::{prelude::*, ThreadPool},
     solana_gossip::cluster_info::ClusterInfo,
@@ -8,7 +8,7 @@ use {
     solana_rayon_threadlimit::get_thread_count,
     solana_runtime::bank_forks::BankForks,
     solana_sdk::timing::timestamp,
-    solana_streamer::bounded_streamer::{BoundedPacketBatchSender, BoundedPacketBatchReceiver},
+    solana_streamer::bounded_streamer::{BoundedPacketBatchReceiver, BoundedPacketBatchSender},
     std::{
         collections::HashMap,
         net::IpAddr,
@@ -122,7 +122,8 @@ impl FindPacketSenderStakeStage {
                             }
                             send_batches_time.stop();
 
-                            stats.max_out_queue = std::cmp::max(stats.max_out_queue, sender.batch_count());
+                            stats.max_out_queue =
+                                std::cmp::max(stats.max_out_queue, sender.batch_count());
                             stats.apply_sender_stakes_time = stats
                                 .apply_sender_stakes_time
                                 .saturating_add(apply_sender_stakes_time.as_us());

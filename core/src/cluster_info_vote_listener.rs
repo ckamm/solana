@@ -24,7 +24,6 @@ use {
         optimistically_confirmed_bank_tracker::{BankNotification, BankNotificationSender},
         rpc_subscriptions::RpcSubscriptions,
     },
-    solana_streamer::bounded_streamer::BoundedPacketBatchSender,
     solana_runtime::{
         bank::Bank,
         bank_forks::BankForks,
@@ -42,6 +41,7 @@ use {
         slot_hashes,
         transaction::Transaction,
     },
+    solana_streamer::bounded_streamer::BoundedPacketBatchSender,
     std::{
         collections::{HashMap, HashSet},
         iter::repeat,

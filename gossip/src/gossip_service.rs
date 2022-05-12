@@ -1,7 +1,10 @@
 //! The `gossip_service` module implements the network control plane.
 
 use {
-    crate::{cluster_info::{ClusterInfo, MAX_GOSSIP_TRAFFIC}, contact_info::ContactInfo},
+    crate::{
+        cluster_info::{ClusterInfo, MAX_GOSSIP_TRAFFIC},
+        contact_info::ContactInfo,
+    },
     crossbeam_channel::{unbounded, Sender},
     rand::{thread_rng, Rng},
     solana_client::thin_client::{create_client, ThinClient},
@@ -12,9 +15,9 @@ use {
         signature::{Keypair, Signer},
     },
     solana_streamer::{
+        bounded_streamer::packet_batch_channel,
         socket::SocketAddrSpace,
         streamer::{self, StreamerReceiveStats},
-        bounded_streamer::{packet_batch_channel},
     },
     std::{
         collections::HashSet,

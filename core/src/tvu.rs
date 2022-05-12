@@ -352,10 +352,7 @@ pub mod tests {
         solana_rpc::optimistically_confirmed_bank_tracker::OptimisticallyConfirmedBank,
         solana_runtime::bank::Bank,
         solana_sdk::signature::{Keypair, Signer},
-        solana_streamer::{
-            bounded_streamer::packet_batch_channel,
-            socket::SocketAddrSpace,
-        },
+        solana_streamer::{bounded_streamer::packet_batch_channel, socket::SocketAddrSpace},
         std::sync::atomic::{AtomicU64, Ordering},
     };
 

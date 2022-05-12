@@ -27,10 +27,7 @@ use {
         timing::{duration_as_us, timestamp},
         transaction::Transaction,
     },
-    solana_streamer::{
-        socket::SocketAddrSpace,
-        bounded_streamer::packet_batch_channel,
-    },
+    solana_streamer::{bounded_streamer::packet_batch_channel, socket::SocketAddrSpace},
     std::{
         sync::{atomic::Ordering, Arc, Mutex, RwLock},
         thread::sleep,

@@ -16,10 +16,7 @@ use {
         sigverify::{count_valid_packets, shrink_batches, Deduper},
     },
     solana_sdk::timing,
-    solana_streamer::{
-        streamer::{StreamerError},
-        bounded_streamer::{BoundedPacketBatchSender},
-    },
+    solana_streamer::{bounded_streamer::BoundedPacketBatchSender, streamer::StreamerError},
     std::{
         thread::{self, Builder, JoinHandle},
         time::Instant,
@@ -242,7 +239,9 @@ impl SigVerifyStage {
         verifier: &T,
         stats: &mut SigVerifierStats,
     ) -> Result<()> {
-        let (mut batches, num_packets, recv_duration) = recvr.recv_duration_default_timeout().map_err(StreamerError::from)?;
+        let (mut batches, num_packets, recv_duration) = recvr
+            .recv_duration_default_timeout()
+            .map_err(StreamerError::from)?;
 
         let batches_len = batches.len();
         debug!(

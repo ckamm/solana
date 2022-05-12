@@ -69,10 +69,8 @@ use {
         transaction::Transaction,
     },
     solana_streamer::{
-        packet,
-        socket::SocketAddrSpace,
-        streamer::{PacketBatchSender},
-        bounded_streamer::{BoundedPacketBatchReceiver},
+        bounded_streamer::BoundedPacketBatchReceiver, packet, socket::SocketAddrSpace,
+        streamer::PacketBatchSender,
     },
     solana_vote_program::vote_state::MAX_LOCKOUT_HISTORY,
     std::{
@@ -2451,7 +2449,10 @@ impl ClusterInfo {
     ) -> Result<(), GossipError> {
         const RECV_TIMEOUT: Duration = Duration::from_secs(1);
         let (batches, _) = receiver.recv_timeout(RECV_TIMEOUT)?;
-        let packets = batches.into_iter().flat_map(|batch| Vec::from(batch.packets)).collect::<Vec<Packet>>();
+        let packets = batches
+            .into_iter()
+            .flat_map(|batch| Vec::from(batch.packets))
+            .collect::<Vec<Packet>>();
         self.stats
             .packets_received_count
             .add_relaxed(packets.len() as u64);

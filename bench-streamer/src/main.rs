@@ -3,9 +3,9 @@
 use {
     clap::{crate_description, crate_name, Arg, Command},
     solana_streamer::{
+        bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
         packet::{Packet, PacketBatch, PacketBatchRecycler, PACKET_DATA_SIZE},
         streamer::{receiver, StreamerReceiveStats},
-        bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
     },
     std::{
         cmp::max,
@@ -43,7 +43,11 @@ fn producer(addr: &SocketAddr, exit: Arc<AtomicBool>) -> JoinHandle<()> {
     })
 }
 
-fn sink(exit: Arc<AtomicBool>, rvs: Arc<AtomicUsize>, r: BoundedPacketBatchReceiver) -> JoinHandle<()> {
+fn sink(
+    exit: Arc<AtomicBool>,
+    rvs: Arc<AtomicUsize>,
+    r: BoundedPacketBatchReceiver,
+) -> JoinHandle<()> {
     spawn(move || loop {
         if exit.load(Ordering::Relaxed) {
             return;
@@ -109,7 +113,7 @@ fn main() -> Result<()> {
 
         addr = read.local_addr().unwrap();
         let (s_reader, r_reader) = packet_batch_channel(1024, 10_000);
-        
+
         read_channels.push(r_reader);
         read_threads.push(receiver(
             Arc::new(read),

@@ -10,7 +10,7 @@ use {
         qos_service::QosService,
         unprocessed_packet_batches::{self, *},
     },
-    crossbeam_channel::{RecvTimeoutError},
+    crossbeam_channel::RecvTimeoutError,
     histogram::Histogram,
     itertools::Itertools,
     min_max_heap::MinMaxHeap,
@@ -38,7 +38,6 @@ use {
         transaction_error_metrics::TransactionErrorMetrics,
         vote_sender_types::ReplayVoteSender,
     },
-    solana_streamer::bounded_streamer::{BoundedPacketBatchReceiver},
     solana_sdk::{
         clock::{
             Slot, DEFAULT_TICKS_PER_SLOT, MAX_PROCESSING_AGE, MAX_TRANSACTION_FORWARDING_DELAY,
@@ -53,6 +52,7 @@ use {
         },
         transport::TransportError,
     },
+    solana_streamer::bounded_streamer::BoundedPacketBatchReceiver,
     solana_transaction_status::token_balances::{
         collect_token_balances, TransactionTokenBalancesSet,
     },

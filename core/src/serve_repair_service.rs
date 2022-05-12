@@ -4,7 +4,7 @@ use {
     solana_ledger::blockstore::Blockstore,
     solana_perf::recycler::Recycler,
     solana_streamer::{
-        bounded_streamer::{packet_batch_channel},
+        bounded_streamer::packet_batch_channel,
         socket::SocketAddrSpace,
         streamer::{self, StreamerReceiveStats},
     },
