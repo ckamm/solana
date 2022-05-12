@@ -1,5 +1,5 @@
 use {
-    crossbeam_channel::{Receiver, RecvTimeoutError, Sender},
+    crossbeam_channel::{RecvTimeoutError},
     lazy_static::lazy_static,
     rayon::{prelude::*, ThreadPool},
     solana_gossip::cluster_info::ClusterInfo,
@@ -8,7 +8,7 @@ use {
     solana_rayon_threadlimit::get_thread_count,
     solana_runtime::bank_forks::BankForks,
     solana_sdk::timing::timestamp,
-    solana_streamer::streamer::{self, StreamerError, MyPacketBatchSender, MyPacketBatchReceiver},
+    solana_streamer::streamer::{MyPacketBatchSender, MyPacketBatchReceiver},
     std::{
         collections::HashMap,
         net::IpAddr,

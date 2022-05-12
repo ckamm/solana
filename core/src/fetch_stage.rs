@@ -5,7 +5,7 @@ use {
         banking_stage::HOLD_TRANSACTIONS_SLOT_OFFSET,
         result::{Error, Result},
     },
-    crossbeam_channel::{unbounded, RecvTimeoutError, TrySendError},
+    crossbeam_channel::{RecvTimeoutError},
     solana_metrics::{inc_new_counter_debug, inc_new_counter_info},
     solana_perf::{packet::PacketBatchRecycler, recycler::Recycler},
     solana_poh::poh_recorder::PohRecorder,
@@ -14,7 +14,7 @@ use {
         packet::{Packet, PacketFlags},
     },
     solana_streamer::streamer::{
-        self, PacketBatchReceiver, PacketBatchSender, StreamerReceiveStats, MyPacketBatchSender, MyPacketBatchReceiver,
+        self, StreamerReceiveStats, MyPacketBatchSender, MyPacketBatchReceiver,
     },
     std::{
         net::UdpSocket,

@@ -29,7 +29,7 @@ use {
     solana_sdk::{
         clock::Slot, hash::Hash, packet::PACKET_DATA_SIZE, pubkey::Pubkey, timing::duration_as_ms,
     },
-    solana_streamer::streamer::{PacketBatchReceiver, PacketBatchSender, MyPacketBatchReceiver},
+    solana_streamer::streamer::{PacketBatchSender, MyPacketBatchReceiver},
     std::{
         collections::HashSet,
         net::SocketAddr,

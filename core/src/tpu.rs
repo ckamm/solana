@@ -15,7 +15,7 @@ use {
         sigverify_stage::SigVerifyStage,
         staked_nodes_updater_service::StakedNodesUpdaterService,
     },
-    crossbeam_channel::{bounded, unbounded, Receiver, RecvTimeoutError},
+    crossbeam_channel::{bounded, Receiver, RecvTimeoutError},
     solana_gossip::cluster_info::ClusterInfo,
     solana_ledger::{blockstore::Blockstore, blockstore_processor::TransactionStatusSender},
     solana_poh::poh_recorder::{PohRecorder, WorkingBankEntry},
@@ -156,6 +156,7 @@ impl Tpu {
             quic_find_packet_sender_stake_sender,
             bank_forks.clone(),
             cluster_info.clone(),
+            "tpu-find-packet-sender-stake",
         );
 
         let (verified_sender, verified_receiver) = solana_streamer::streamer::my_packet_batch_channel(10_000, 10_000);
