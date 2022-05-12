@@ -605,7 +605,6 @@ mod test {
 
     use {
         super::*,
-        crossbeam_channel::unbounded,
         quinn::{ClientConfig, NewConnection},
         solana_sdk::quic::QUIC_KEEP_ALIVE_MS,
         std::{net::SocketAddr, time::Instant},

@@ -268,6 +268,14 @@ mod test {
         }
 
         sender.send_batch(packet_batch);
-        let (batches, packets) = receiver.recv()?;
+        match receiver.recv() {
+            Ok(batches, packets) => {
+                assert_eq!(packets, NUM_PACKETS);
+                println!("PASS!");
+            }
+            Err(err) => {
+                println!("Error!");
+            }
+        }
     }
 }
