@@ -24,7 +24,7 @@ use {
     solana_rayon_threadlimit::get_thread_count,
     solana_runtime::{bank::Bank, bank_forks::BankForks},
     solana_sdk::{clock::Slot, packet::PACKET_DATA_SIZE, pubkey::Pubkey},
-    solana_streamer::streamer::BoundedPacketBatchReceiver,
+    solana_streamer::bounded_streamer::BoundedPacketBatchReceiver,
     std::{
         cmp::Reverse,
         collections::{HashMap, HashSet},

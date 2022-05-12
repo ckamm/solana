@@ -4,7 +4,8 @@ use {
     clap::{crate_description, crate_name, Arg, Command},
     solana_streamer::{
         packet::{Packet, PacketBatch, PacketBatchRecycler, PACKET_DATA_SIZE},
-        streamer::{receiver, packet_batch_channel, BoundedPacketBatchReceiver, StreamerReceiveStats},
+        streamer::{receiver, StreamerReceiveStats},
+        bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
     },
     std::{
         cmp::max,

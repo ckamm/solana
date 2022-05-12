@@ -13,8 +13,9 @@ use {
         clock::DEFAULT_TICKS_PER_SLOT,
         packet::{Packet, PacketFlags},
     },
-    solana_streamer::streamer::{
-        self, StreamerReceiveStats, BoundedPacketBatchSender, BoundedPacketBatchReceiver,
+    solana_streamer::{
+        streamer::{self, StreamerReceiveStats},
+        bounded_streamer::{BoundedPacketBatchSender, BoundedPacketBatchReceiver},
     },
     std::{
         net::UdpSocket,

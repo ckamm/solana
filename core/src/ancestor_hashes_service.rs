@@ -23,7 +23,10 @@ use {
         pubkey::Pubkey,
         timing::timestamp,
     },
-    solana_streamer::streamer::{self, BoundedPacketBatchReceiver, StreamerReceiveStats},
+    solana_streamer::{
+        streamer::{self, StreamerReceiveStats},
+        bounded_streamer::{BoundedPacketBatchReceiver},
+    },
     std::{
         collections::HashSet,
         net::UdpSocket,

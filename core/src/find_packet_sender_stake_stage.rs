@@ -8,7 +8,7 @@ use {
     solana_rayon_threadlimit::get_thread_count,
     solana_runtime::bank_forks::BankForks,
     solana_sdk::timing::timestamp,
-    solana_streamer::streamer::{BoundedPacketBatchSender, BoundedPacketBatchReceiver},
+    solana_streamer::bounded_streamer::{BoundedPacketBatchSender, BoundedPacketBatchReceiver},
     std::{
         collections::HashMap,
         net::IpAddr,

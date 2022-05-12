@@ -38,7 +38,7 @@ use {
         transaction_error_metrics::TransactionErrorMetrics,
         vote_sender_types::ReplayVoteSender,
     },
-    solana_streamer::streamer::{BoundedPacketBatchReceiver},
+    solana_streamer::bounded_streamer::{BoundedPacketBatchReceiver},
     solana_sdk::{
         clock::{
             Slot, DEFAULT_TICKS_PER_SLOT, MAX_PROCESSING_AGE, MAX_TRANSACTION_FORWARDING_DELAY,

@@ -31,8 +31,10 @@ use {
     solana_rpc::{max_slots::MaxSlots, rpc_subscriptions::RpcSubscriptions},
     solana_runtime::{bank::Bank, bank_forks::BankForks},
     solana_sdk::{clock::Slot, epoch_schedule::EpochSchedule, pubkey::Pubkey, timing::timestamp},
-    solana_streamer::sendmmsg::{multi_target_send, SendPktsError},
-    solana_streamer::streamer::BoundedPacketBatchReceiver,
+    solana_streamer::{
+        sendmmsg::{multi_target_send, SendPktsError},
+        bounded_streamer::{BoundedPacketBatchReceiver},
+    },
     std::{
         collections::{BTreeSet, HashMap, HashSet},
         net::UdpSocket,
