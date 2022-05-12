@@ -4,7 +4,7 @@ use {
     clap::{crate_description, crate_name, Arg, Command},
     solana_streamer::{
         packet::{Packet, PacketBatch, PacketBatchRecycler, PACKET_DATA_SIZE},
-        streamer::{receiver, my_packet_batch_channel, MyPacketBatchReceiver, PacketBatchReceiver, StreamerReceiveStats},
+        streamer::{receiver, my_packet_batch_channel, MyPacketBatchReceiver, StreamerReceiveStats},
     },
     std::{
         cmp::max,
@@ -49,7 +49,7 @@ fn sink(exit: Arc<AtomicBool>, rvs: Arc<AtomicUsize>, r: MyPacketBatchReceiver) 
         }
         let timer = Duration::new(1, 0);
         if let Ok(recv_response) = r.recv_timeout(timer) {
-            let (packet_batch, _, _) = recv_response.unwrap();
+            let (packet_batch, _, _) = recv_response;
             rvs.fetch_add(packet_batch.packets.len(), Ordering::Relaxed);
         }
     })
