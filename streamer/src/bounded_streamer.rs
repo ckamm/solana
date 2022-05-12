@@ -105,7 +105,7 @@ impl BoundedPacketBatchReceiver {
         Some((recv_data, packets))
     }
 
-    pub fn recv_default_timeout(&self) -> Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
+    pub fn recv_default_timeout(&self) -> Result<(Vec<PacketBatch>, usize), RecvTimeoutError> {
         let timer = Duration::new(1, 0);
         self.recv_timeout(timer)
     }
