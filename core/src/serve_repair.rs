@@ -328,7 +328,7 @@ impl ServeRepair {
         let timeout = Duration::new(1, 0);
         let (mut reqs_v, _, _) = requests_receiver.recv_timeout(timeout)?;
 
-        let mut dropped_packets = 0;
+        let dropped_packets = 0;
         let mut total_packets = 0;
         reqs_v.retain(|batch| {
             total_packets += batch.packets.len();

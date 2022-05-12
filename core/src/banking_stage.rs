@@ -87,8 +87,8 @@ const MIN_THREADS_BANKING: u32 = 1;
 const MIN_TOTAL_THREADS: u32 = NUM_VOTE_PROCESSING_THREADS + MIN_THREADS_BANKING;
 const UNPROCESSED_BUFFER_STEP_SIZE: usize = 128;
 
-const MAX_RECEIVE_BATCH_SIZE_PER_ITERATION: usize = 50_000;
-const MAX_RECEIVE_TIME_MS_PER_ITERATION: u64 = 50;
+//const MAX_RECEIVE_BATCH_SIZE_PER_ITERATION: usize = 50_000;
+//const MAX_RECEIVE_TIME_MS_PER_ITERATION: u64 = 50;
 
 pub struct ProcessTransactionBatchOutput {
     // The number of transactions filtered out by the cost model
@@ -1978,25 +1978,6 @@ impl BankingStage {
             .filter(|(_, pkt)| !pkt.meta.discard())
             .map(|(index, _)| index)
             .collect()
-    }
-
-    fn receive_until(
-        verified_receiver: &CrossbeamReceiver<Vec<PacketBatch>>,
-        recv_timeout: Duration,
-        batching_timeout: Duration,
-        batch_size_upperbound: usize,
-    ) -> Result<Vec<PacketBatch>, RecvTimeoutError> {
-        let start = Instant::now();
-        let mut packet_batches = verified_receiver.recv_timeout(recv_timeout)?;
-        while let Ok(packet_batch) = verified_receiver.try_recv() {
-            trace!("got more packets");
-            packet_batches.extend(packet_batch);
-            if start.elapsed() >= batching_timeout || packet_batches.len() >= batch_size_upperbound
-            {
-                break;
-            }
-        }
-        Ok(packet_batches)
     }
 
     #[allow(clippy::too_many_arguments)]

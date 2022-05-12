@@ -252,7 +252,7 @@ impl AncestorHashesService {
         let timeout = Duration::new(1, 0);
         let (mut packet_batches, _, _) = response_receiver.recv_timeout(timeout)?;
 
-        let mut dropped_packets = 0;
+        let dropped_packets = 0;
         let mut total_packets = 0;
         packet_batches.retain(|batch| {
             total_packets += batch.packets.len();

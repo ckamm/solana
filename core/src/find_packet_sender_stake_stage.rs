@@ -141,7 +141,6 @@ impl FindPacketSenderStakeStage {
                         Err(e) => match e {
                             RecvTimeoutError::Disconnected => break,
                             RecvTimeoutError::Timeout => (),
-                            _ => error!("error: {:?}", e),
                         },
                     }
 
