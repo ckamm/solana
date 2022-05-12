@@ -8,7 +8,7 @@ use {
     solana_rayon_threadlimit::get_thread_count,
     solana_runtime::bank_forks::BankForks,
     solana_sdk::timing::timestamp,
-    solana_streamer::streamer::{MyPacketBatchSender, MyPacketBatchReceiver},
+    solana_streamer::streamer::{BoundedPacketBatchSender, BoundedPacketBatchReceiver},
     std::{
         collections::HashMap,
         net::IpAddr,
@@ -28,8 +28,8 @@ lazy_static! {
         .unwrap();
 }
 
-pub type FindPacketSenderStakeSender = MyPacketBatchSender;
-pub type FindPacketSenderStakeReceiver = MyPacketBatchReceiver;
+pub type FindPacketSenderStakeSender = BoundedPacketBatchSender;
+pub type FindPacketSenderStakeReceiver = BoundedPacketBatchReceiver;
 
 #[derive(Debug, Default)]
 struct FindPacketSenderStakeStats {
@@ -83,7 +83,7 @@ pub struct FindPacketSenderStakeStage {
 
 impl FindPacketSenderStakeStage {
     pub fn new(
-        packet_receiver: MyPacketBatchReceiver,
+        packet_receiver: BoundedPacketBatchReceiver,
         sender: FindPacketSenderStakeSender,
         bank_forks: Arc<RwLock<BankForks>>,
         cluster_info: Arc<ClusterInfo>,

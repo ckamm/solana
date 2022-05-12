@@ -32,7 +32,7 @@ use {
     solana_runtime::{bank::Bank, bank_forks::BankForks},
     solana_sdk::{clock::Slot, epoch_schedule::EpochSchedule, pubkey::Pubkey, timing::timestamp},
     solana_streamer::sendmmsg::{multi_target_send, SendPktsError},
-    solana_streamer::streamer::MyPacketBatchReceiver,
+    solana_streamer::streamer::BoundedPacketBatchReceiver,
     std::{
         collections::{BTreeSet, HashMap, HashSet},
         net::UdpSocket,
@@ -436,7 +436,7 @@ impl RetransmitStage {
         retransmit_sockets: Arc<Vec<UdpSocket>>,
         repair_socket: Arc<UdpSocket>,
         ancestor_hashes_socket: Arc<UdpSocket>,
-        verified_receiver: MyPacketBatchReceiver,
+        verified_receiver: BoundedPacketBatchReceiver,
         exit: Arc<AtomicBool>,
         cluster_slots_update_receiver: ClusterSlotsUpdateReceiver,
         epoch_schedule: EpochSchedule,

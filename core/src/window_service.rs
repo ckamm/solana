@@ -24,7 +24,7 @@ use {
     solana_rayon_threadlimit::get_thread_count,
     solana_runtime::{bank::Bank, bank_forks::BankForks},
     solana_sdk::{clock::Slot, packet::PACKET_DATA_SIZE, pubkey::Pubkey},
-    solana_streamer::streamer::MyPacketBatchReceiver,
+    solana_streamer::streamer::BoundedPacketBatchReceiver,
     std::{
         cmp::Reverse,
         collections::{HashMap, HashSet},
@@ -344,7 +344,7 @@ fn recv_window<F>(
     blockstore: &Blockstore,
     bank_forks: &RwLock<BankForks>,
     insert_shred_sender: &Sender<(Vec<Shred>, Vec<Option<RepairMeta>>)>,
-    verified_receiver: &MyPacketBatchReceiver,
+    verified_receiver: &BoundedPacketBatchReceiver,
     retransmit_sender: &Sender<Vec<Shred>>,
     shred_filter: F,
     thread_pool: &ThreadPool,
@@ -448,7 +448,7 @@ impl WindowService {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new<F>(
         blockstore: Arc<Blockstore>,
-        verified_receiver: MyPacketBatchReceiver,
+        verified_receiver: BoundedPacketBatchReceiver,
         retransmit_sender: Sender<Vec<Shred>>,
         repair_socket: Arc<UdpSocket>,
         ancestor_hashes_socket: Arc<UdpSocket>,
@@ -621,7 +621,7 @@ impl WindowService {
         exit: Arc<AtomicBool>,
         blockstore: Arc<Blockstore>,
         insert_sender: Sender<(Vec<Shred>, Vec<Option<RepairMeta>>)>,
-        verified_receiver: MyPacketBatchReceiver,
+        verified_receiver: BoundedPacketBatchReceiver,
         shred_filter: F,
         bank_forks: Arc<RwLock<BankForks>>,
         retransmit_sender: Sender<Vec<Shred>>,

@@ -14,7 +14,7 @@ use {
         packet::{Packet, PacketFlags},
     },
     solana_streamer::streamer::{
-        self, StreamerReceiveStats, MyPacketBatchSender, MyPacketBatchReceiver,
+        self, StreamerReceiveStats, BoundedPacketBatchSender, BoundedPacketBatchReceiver,
     },
     std::{
         net::UdpSocket,
@@ -40,9 +40,9 @@ impl FetchStage {
         exit: &Arc<AtomicBool>,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
         coalesce_ms: u64,
-    ) -> (Self, MyPacketBatchReceiver, MyPacketBatchReceiver) {
-        let (sender, receiver) = streamer::my_packet_batch_channel(100_000, 10_000);
-        let (vote_sender, vote_receiver) = streamer::my_packet_batch_channel(100_000, 10_000);
+    ) -> (Self, BoundedPacketBatchReceiver, BoundedPacketBatchReceiver) {
+        let (sender, receiver) = streamer::packet_batch_channel(100_000, 10_000);
+        let (vote_sender, vote_receiver) = streamer::packet_batch_channel(100_000, 10_000);
         (
             Self::new_with_sender(
                 sockets,
@@ -64,8 +64,8 @@ impl FetchStage {
         tpu_forwards_sockets: Vec<UdpSocket>,
         tpu_vote_sockets: Vec<UdpSocket>,
         exit: &Arc<AtomicBool>,
-        sender: &MyPacketBatchSender,
-        vote_sender: &MyPacketBatchSender,
+        sender: &BoundedPacketBatchSender,
+        vote_sender: &BoundedPacketBatchSender,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
         coalesce_ms: u64,
     ) -> Self {
@@ -85,8 +85,8 @@ impl FetchStage {
     }
 
     fn handle_forwarded_packets(
-        recvr: &MyPacketBatchReceiver,
-        sendr: &MyPacketBatchSender,
+        recvr: &BoundedPacketBatchReceiver,
+        sendr: &BoundedPacketBatchSender,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
     ) -> Result<()> {
         let mark_forwarded = |packet: &mut Packet| {
@@ -117,8 +117,8 @@ impl FetchStage {
         tpu_forwards_sockets: Vec<Arc<UdpSocket>>,
         tpu_vote_sockets: Vec<Arc<UdpSocket>>,
         exit: &Arc<AtomicBool>,
-        sender: &MyPacketBatchSender,
-        vote_sender: &MyPacketBatchSender,
+        sender: &BoundedPacketBatchSender,
+        vote_sender: &BoundedPacketBatchSender,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
         coalesce_ms: u64,
     ) -> Self {
@@ -141,7 +141,7 @@ impl FetchStage {
             .collect();
 
         let tpu_forward_stats = Arc::new(StreamerReceiveStats::new("tpu_forwards_receiver"));
-        let (forward_sender, forward_receiver) = streamer::my_packet_batch_channel(1024, 10_000);
+        let (forward_sender, forward_receiver) = streamer::packet_batch_channel(1024, 10_000);
         let tpu_forwards_threads: Vec<_> = tpu_forwards_sockets
             .into_iter()
             .map(|socket| {

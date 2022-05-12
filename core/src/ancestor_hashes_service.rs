@@ -23,7 +23,7 @@ use {
         pubkey::Pubkey,
         timing::timestamp,
     },
-    solana_streamer::streamer::{self, MyPacketBatchReceiver, StreamerReceiveStats},
+    solana_streamer::streamer::{self, BoundedPacketBatchReceiver, StreamerReceiveStats},
     std::{
         collections::HashSet,
         net::UdpSocket,
@@ -146,7 +146,7 @@ impl AncestorHashesService {
     ) -> Self {
         let outstanding_requests: Arc<RwLock<OutstandingAncestorHashesRepairs>> =
             Arc::new(RwLock::new(OutstandingAncestorHashesRepairs::default()));
-        let (response_sender, response_receiver) = streamer::my_packet_batch_channel(usize::MAX, 10_000);
+        let (response_sender, response_receiver) = streamer::packet_batch_channel(usize::MAX, 10_000);
         let t_receiver = streamer::receiver(
             ancestor_hashes_request_socket.clone(),
             exit.clone(),
@@ -198,7 +198,7 @@ impl AncestorHashesService {
     /// Listen for responses to our ancestors hashes repair requests
     fn run_responses_listener(
         ancestor_hashes_request_statuses: Arc<DashMap<Slot, DeadSlotAncestorRequestStatus>>,
-        response_receiver: MyPacketBatchReceiver,
+        response_receiver: BoundedPacketBatchReceiver,
         blockstore: Arc<Blockstore>,
         outstanding_requests: Arc<RwLock<OutstandingAncestorHashesRepairs>>,
         exit: Arc<AtomicBool>,
@@ -241,7 +241,7 @@ impl AncestorHashesService {
     /// Process messages from the network
     fn process_new_packets_from_channel(
         ancestor_hashes_request_statuses: &DashMap<Slot, DeadSlotAncestorRequestStatus>,
-        response_receiver: &MyPacketBatchReceiver,
+        response_receiver: &BoundedPacketBatchReceiver,
         blockstore: &Blockstore,
         outstanding_requests: &RwLock<OutstandingAncestorHashesRepairs>,
         stats: &mut AncestorHashesResponsesStats,

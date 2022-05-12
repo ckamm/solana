@@ -29,7 +29,7 @@ use {
     solana_sdk::{
         clock::Slot, hash::Hash, packet::PACKET_DATA_SIZE, pubkey::Pubkey, timing::duration_as_ms,
     },
-    solana_streamer::streamer::{PacketBatchSender, MyPacketBatchReceiver},
+    solana_streamer::streamer::{PacketBatchSender, BoundedPacketBatchReceiver},
     std::{
         collections::HashSet,
         net::SocketAddr,
@@ -319,7 +319,7 @@ impl ServeRepair {
         obj: &Arc<RwLock<Self>>,
         recycler: &PacketBatchRecycler,
         blockstore: Option<&Arc<Blockstore>>,
-        requests_receiver: &MyPacketBatchReceiver,
+        requests_receiver: &BoundedPacketBatchReceiver,
         response_sender: &PacketBatchSender,
         stats: &mut ServeRepairStats,
         packet_threshold: &mut DynamicPacketToProcessThreshold,
@@ -380,7 +380,7 @@ impl ServeRepair {
     pub fn listen(
         me: Arc<RwLock<Self>>,
         blockstore: Option<Arc<Blockstore>>,
-        requests_receiver: MyPacketBatchReceiver,
+        requests_receiver: BoundedPacketBatchReceiver,
         response_sender: PacketBatchSender,
         exit: &Arc<AtomicBool>,
     ) -> JoinHandle<()> {

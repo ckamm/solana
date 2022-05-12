@@ -1,5 +1,5 @@
 use {
-    crate::streamer::MyPacketBatchSender,
+    crate::streamer::BoundedPacketBatchSender,
     futures_util::stream::StreamExt,
     pem::Pem,
     pkcs8::{der::Document, AlgorithmIdentifier, ObjectIdentifier},
@@ -152,7 +152,7 @@ fn handle_chunk(
     chunk: &Result<Option<quinn::Chunk>, quinn::ReadError>,
     maybe_batch: &mut Option<PacketBatch>,
     remote_addr: &SocketAddr,
-    packet_sender: &MyPacketBatchSender,
+    packet_sender: &BoundedPacketBatchSender,
     stats: Arc<StreamStats>,
     stake: u64,
 ) -> bool {
@@ -429,7 +429,7 @@ impl StreamStats {
 
 fn handle_connection(
     mut uni_streams: IncomingUniStreams,
-    packet_sender: MyPacketBatchSender,
+    packet_sender: BoundedPacketBatchSender,
     remote_addr: SocketAddr,
     last_update: Arc<AtomicU64>,
     connection_table: Arc<Mutex<ConnectionTable>>,
@@ -489,7 +489,7 @@ pub fn spawn_server(
     sock: UdpSocket,
     keypair: &Keypair,
     gossip_host: IpAddr,
-    packet_sender: MyPacketBatchSender,
+    packet_sender: BoundedPacketBatchSender,
     exit: Arc<AtomicBool>,
     max_connections_per_ip: usize,
     staked_nodes: Arc<RwLock<HashMap<IpAddr, u64>>>,

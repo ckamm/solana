@@ -26,26 +26,26 @@ use {
     thiserror::Error,
 };
 
-struct MyPacketBatchChannelData {
+struct PacketBatchChannelData {
     queue: VecDeque<PacketBatch>,
     packet_count: usize,
-    work_unit_packet_size: usize,
+    batches_batch_size: usize,
     max_queued_batches: usize,
 }
 
 #[derive(Clone)]
-pub struct MyPacketBatchReceiver {
+pub struct BoundedPacketBatchReceiver {
     receiver: Receiver<()>,
-    data: Arc<RwLock<MyPacketBatchChannelData>>,
+    data: Arc<RwLock<PacketBatchChannelData>>,
 }
 
 #[derive(Clone)]
-pub struct MyPacketBatchSender {
+pub struct BoundedPacketBatchSender {
     sender: Sender<()>,
-    data: Arc<RwLock<MyPacketBatchChannelData>>,
+    data: Arc<RwLock<PacketBatchChannelData>>,
 }
 
-impl MyPacketBatchChannelData {
+impl PacketBatchChannelData {
     fn add_packet_count(&mut self, amount: usize) {
         self.packet_count = self.packet_count.saturating_add(amount);
     }
@@ -54,7 +54,7 @@ impl MyPacketBatchChannelData {
     }
 }
 
-impl MyPacketBatchReceiver {
+impl BoundedPacketBatchReceiver {
     // TODO: can return Ok(no-batches)
     pub fn recv_timeout(
         &self,
@@ -98,7 +98,7 @@ impl MyPacketBatchReceiver {
             let mut packets = 0;
             for batch in locked_data.queue.iter() {
                 let new_packets = packets + batch.packets.len();
-                if new_packets > locked_data.work_unit_packet_size {
+                if new_packets > locked_data.batches_batch_size {
                     break;
                 }
                 packets = new_packets;
@@ -133,7 +133,7 @@ impl MyPacketBatchReceiver {
     }
 }
 
-impl MyPacketBatchSender {
+impl BoundedPacketBatchSender {
     // Ok(true) means an existing batch was discarded
     pub fn send_batch(&self, batch: PacketBatch) -> std::result::Result<bool, SendError<()>> {
         if batch.packets.len() == 0 {
@@ -209,19 +209,19 @@ impl MyPacketBatchSender {
     }
 }
 
-pub fn my_packet_batch_channel(work_unit_packet_size: usize, max_queued_batches: usize) -> (MyPacketBatchSender, MyPacketBatchReceiver) {
+pub fn packet_batch_channel(batches_batch_size: usize, max_queued_batches: usize) -> (BoundedPacketBatchSender, BoundedPacketBatchReceiver) {
     let (sig_sender, sig_receiver) = crossbeam_channel::unbounded::<()>();
-    let data = Arc::new(RwLock::new(MyPacketBatchChannelData {
+    let data = Arc::new(RwLock::new(PacketBatchChannelData {
         queue: VecDeque::new(),
         packet_count: 0,
         max_queued_batches,
-        work_unit_packet_size,
+        batches_batch_size,
     }));
-    let sender = MyPacketBatchSender {
+    let sender = BoundedPacketBatchSender {
         sender: sig_sender.clone(),
         data: data.clone(),
     };
-    let receiver = MyPacketBatchReceiver {
+    let receiver = BoundedPacketBatchReceiver {
         receiver: sig_receiver,
         data: data,
     };
@@ -309,7 +309,7 @@ pub struct ReceiverOptions {
 fn recv_loop(
     socket: &UdpSocket,
     exit: Arc<AtomicBool>,
-    packet_batch_sender: &MyPacketBatchSender,
+    packet_batch_sender: &BoundedPacketBatchSender,
     recycler: &PacketBatchRecycler,
     stats: &StreamerReceiveStats,
     coalesce_ms: u64,
@@ -354,7 +354,7 @@ fn recv_loop(
 pub fn receiver(
     socket: Arc<UdpSocket>,
     exit: Arc<AtomicBool>,
-    packet_batch_sender: MyPacketBatchSender,
+    packet_batch_sender: BoundedPacketBatchSender,
     recycler: PacketBatchRecycler,
     stats: Arc<StreamerReceiveStats>,
     coalesce_ms: u64,

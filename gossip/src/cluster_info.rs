@@ -71,7 +71,7 @@ use {
     solana_streamer::{
         packet,
         socket::SocketAddrSpace,
-        streamer::{MyPacketBatchReceiver, PacketBatchSender},
+        streamer::{BoundedPacketBatchReceiver, PacketBatchSender},
     },
     solana_vote_program::vote_state::MAX_LOCKOUT_HISTORY,
     std::{
@@ -2444,7 +2444,7 @@ impl ClusterInfo {
     // handling of requests/messages.
     fn run_socket_consume(
         &self,
-        receiver: &MyPacketBatchReceiver,
+        receiver: &BoundedPacketBatchReceiver,
         sender: &Sender<Vec<(/*from:*/ SocketAddr, Protocol)>>,
         thread_pool: &ThreadPool,
     ) -> Result<(), GossipError> {
@@ -2525,7 +2525,7 @@ impl ClusterInfo {
 
     pub(crate) fn start_socket_consume_thread(
         self: Arc<Self>,
-        receiver: MyPacketBatchReceiver,
+        receiver: BoundedPacketBatchReceiver,
         sender: Sender<Vec<(/*from:*/ SocketAddr, Protocol)>>,
         exit: Arc<AtomicBool>,
     ) -> JoinHandle<()> {

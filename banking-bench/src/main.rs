@@ -29,7 +29,7 @@ use {
     },
     solana_streamer::{
         socket::SocketAddrSpace,
-        streamer::my_packet_batch_channel,
+        streamer::packet_batch_channel,
     },
     std::{
         sync::{atomic::Ordering, Arc, Mutex, RwLock},
@@ -240,9 +240,9 @@ fn main() {
         ..
     } = create_genesis_config(mint_total);
 
-    let (verified_sender, verified_receiver) = my_packet_batch_channel(1024, 10_000);
-    let (vote_sender, vote_receiver) = my_packet_batch_channel(1024, 10_000);
-    let (tpu_vote_sender, tpu_vote_receiver) = my_packet_batch_channel(1024, 10_000);
+    let (verified_sender, verified_receiver) = packet_batch_channel(1024, 10_000);
+    let (vote_sender, vote_receiver) = packet_batch_channel(1024, 10_000);
+    let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(1024, 10_000);
     let (replay_vote_sender, _replay_vote_receiver) = unbounded();
     let bank0 = Bank::new_for_benches(&genesis_config);
     let mut bank_forks = BankForks::new(bank0);

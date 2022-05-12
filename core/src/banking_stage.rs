@@ -38,7 +38,7 @@ use {
         transaction_error_metrics::TransactionErrorMetrics,
         vote_sender_types::ReplayVoteSender,
     },
-    solana_streamer::streamer::{MyPacketBatchReceiver},
+    solana_streamer::streamer::{BoundedPacketBatchReceiver},
     solana_sdk::{
         clock::{
             Slot, DEFAULT_TICKS_PER_SLOT, MAX_PROCESSING_AGE, MAX_TRANSACTION_FORWARDING_DELAY,
@@ -383,9 +383,9 @@ impl BankingStage {
     pub fn new(
         cluster_info: &Arc<ClusterInfo>,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
-        verified_receiver: MyPacketBatchReceiver,
-        tpu_verified_vote_receiver: MyPacketBatchReceiver,
-        verified_vote_receiver: MyPacketBatchReceiver,
+        verified_receiver: BoundedPacketBatchReceiver,
+        tpu_verified_vote_receiver: BoundedPacketBatchReceiver,
+        verified_vote_receiver: BoundedPacketBatchReceiver,
         transaction_status_sender: Option<TransactionStatusSender>,
         gossip_vote_sender: ReplayVoteSender,
         cost_model: Arc<RwLock<CostModel>>,
@@ -407,9 +407,9 @@ impl BankingStage {
     pub fn new_num_threads(
         cluster_info: &Arc<ClusterInfo>,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
-        verified_receiver: MyPacketBatchReceiver,
-        tpu_verified_vote_receiver: MyPacketBatchReceiver,
-        verified_vote_receiver: MyPacketBatchReceiver,
+        verified_receiver: BoundedPacketBatchReceiver,
+        tpu_verified_vote_receiver: BoundedPacketBatchReceiver,
+        verified_vote_receiver: BoundedPacketBatchReceiver,
         num_threads: u32,
         transaction_status_sender: Option<TransactionStatusSender>,
         gossip_vote_sender: ReplayVoteSender,
@@ -992,7 +992,7 @@ impl BankingStage {
 
     #[allow(clippy::too_many_arguments)]
     fn process_loop(
-        verified_receiver: &MyPacketBatchReceiver,
+        verified_receiver: &BoundedPacketBatchReceiver,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
         cluster_info: &ClusterInfo,
         recv_start: &mut Instant,
@@ -1983,7 +1983,7 @@ impl BankingStage {
     #[allow(clippy::too_many_arguments)]
     /// Receive incoming packets, push into unprocessed buffer with packet indexes
     fn receive_and_buffer_packets(
-        verified_receiver: &MyPacketBatchReceiver,
+        verified_receiver: &BoundedPacketBatchReceiver,
         recv_start: &mut Instant,
         recv_timeout: Duration,
         id: u32,

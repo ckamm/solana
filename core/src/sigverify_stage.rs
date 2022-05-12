@@ -16,7 +16,7 @@ use {
         sigverify::{count_valid_packets, shrink_batches, Deduper},
     },
     solana_sdk::timing,
-    solana_streamer::streamer::{StreamerError, MyPacketBatchSender},
+    solana_streamer::streamer::{StreamerError, BoundedPacketBatchSender},
     std::{
         thread::{self, Builder, JoinHandle},
         time::Instant,
@@ -199,7 +199,7 @@ impl SigVerifyStage {
     #[allow(clippy::new_ret_no_self)]
     pub fn new<T: SigVerifier + 'static + Send + Clone>(
         packet_receiver: find_packet_sender_stake_stage::FindPacketSenderStakeReceiver,
-        verified_sender: MyPacketBatchSender,
+        verified_sender: BoundedPacketBatchSender,
         verifier: T,
         name: &'static str,
     ) -> Self {
@@ -235,7 +235,7 @@ impl SigVerifyStage {
     fn verifier<T: SigVerifier>(
         deduper: &Deduper,
         recvr: &find_packet_sender_stake_stage::FindPacketSenderStakeReceiver,
-        sendr: &MyPacketBatchSender,
+        sendr: &BoundedPacketBatchSender,
         verifier: &T,
         stats: &mut SigVerifierStats,
     ) -> Result<()> {
@@ -322,7 +322,7 @@ impl SigVerifyStage {
 
     fn verifier_service<T: SigVerifier + 'static + Send + Clone>(
         packet_receiver: find_packet_sender_stake_stage::FindPacketSenderStakeReceiver,
-        verified_sender: MyPacketBatchSender,
+        verified_sender: BoundedPacketBatchSender,
         verifier: &T,
         name: &'static str,
     ) -> JoinHandle<()> {
@@ -369,7 +369,7 @@ impl SigVerifyStage {
 
     fn verifier_services<T: SigVerifier + 'static + Send + Clone>(
         packet_receiver: find_packet_sender_stake_stage::FindPacketSenderStakeReceiver,
-        verified_sender: MyPacketBatchSender,
+        verified_sender: BoundedPacketBatchSender,
         verifier: T,
         name: &'static str,
     ) -> JoinHandle<()> {

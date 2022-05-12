@@ -11,7 +11,7 @@ use {
     },
     solana_runtime::bank_forks::BankForks,
     solana_sdk::clock::{Slot, DEFAULT_MS_PER_SLOT},
-    solana_streamer::streamer::{self, StreamerReceiveStats, MyPacketBatchReceiver, MyPacketBatchSender},
+    solana_streamer::streamer::{self, StreamerReceiveStats, BoundedPacketBatchReceiver, BoundedPacketBatchSender},
     std::{
         net::UdpSocket,
         sync::{atomic::AtomicBool, Arc, RwLock},
@@ -63,8 +63,8 @@ impl ShredFetchStage {
 
     // updates packets received on a channel and sends them on another channel
     fn modify_packets<F>(
-        recvr: MyPacketBatchReceiver,
-        sendr: MyPacketBatchSender,
+        recvr: BoundedPacketBatchReceiver,
+        sendr: BoundedPacketBatchSender,
         bank_forks: Option<Arc<RwLock<BankForks>>>,
         name: &'static str,
         modify: F,
@@ -122,7 +122,7 @@ impl ShredFetchStage {
     fn packet_modifier<F>(
         sockets: Vec<Arc<UdpSocket>>,
         exit: &Arc<AtomicBool>,
-        sender: MyPacketBatchSender,
+        sender: BoundedPacketBatchSender,
         recycler: Recycler<PinnedVec<Packet>>,
         bank_forks: Option<Arc<RwLock<BankForks>>>,
         name: &'static str,
@@ -131,7 +131,7 @@ impl ShredFetchStage {
     where
         F: Fn(&mut Packet) + Send + 'static,
     {
-        let (packet_sender, packet_receiver) = streamer::my_packet_batch_channel(1, 10_000);
+        let (packet_sender, packet_receiver) = streamer::packet_batch_channel(1, 10_000);
         let streamers = sockets
             .into_iter()
             .map(|s| {
@@ -158,7 +158,7 @@ impl ShredFetchStage {
         sockets: Vec<Arc<UdpSocket>>,
         forward_sockets: Vec<Arc<UdpSocket>>,
         repair_socket: Arc<UdpSocket>,
-        sender: &MyPacketBatchSender,
+        sender: &BoundedPacketBatchSender,
         bank_forks: Option<Arc<RwLock<BankForks>>>,
         exit: &Arc<AtomicBool>,
     ) -> Self {
