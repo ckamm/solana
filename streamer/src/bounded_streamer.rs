@@ -269,7 +269,7 @@ mod test {
 
         sender.send_batch(packet_batch);
         match receiver.recv() {
-            Ok(batches, packets) => {
+            Ok((batches, packets)) => {
                 assert_eq!(packets, NUM_PACKETS);
                 println!("PASS!");
             }

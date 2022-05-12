@@ -777,9 +777,11 @@ mod test {
         let now = Instant::now();
         let mut total_packets = 0;
         while now.elapsed().as_secs() < 10 {
-            if let Ok(packets) = receiver.recv_timeout(Duration::from_secs(1)) {
-                total_packets += packets.packets.len();
-                all_packets.push(packets)
+            if let Ok((batches, packets)) = receiver.recv_timeout(Duration::from_secs(1)) {
+                total_packets += packets;
+                for batch in batches {
+                    all_packets.push(batch)
+                }
             }
             if total_packets == num_expected_packets {
                 break;
