@@ -69,7 +69,7 @@ impl BoundedPacketBatchReceiver {
     ) -> Result<Vec<PacketBatch>, RecvTimeoutError> {
         let start = Instant::now();
         let (mut packet_batches, _) = self.recv_timeout(recv_timeout)?;
-        while let Ok(packet_batch) = self.try_recv() {
+        while let Some((packet_batch, _)) = self.try_recv() {
             trace!("got more packets");
             packet_batches.extend(packet_batch);
             if start.elapsed() >= batching_timeout || packet_batches.len() >= batch_size_upperbound
