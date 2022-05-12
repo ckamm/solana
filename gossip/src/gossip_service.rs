@@ -14,6 +14,7 @@ use {
     solana_streamer::{
         socket::SocketAddrSpace,
         streamer::{self, StreamerReceiveStats},
+        bounded_streamer::{packet_batch_channel},
     },
     std::{
         collections::HashSet,
@@ -41,7 +42,7 @@ impl GossipService {
         stats_reporter_sender: Option<Sender<Box<dyn FnOnce() + Send>>>,
         exit: &Arc<AtomicBool>,
     ) -> Self {
-        let (request_sender, request_receiver) = streamer::packet_batch_channel(100_000, MAX_GOSSIP_TRAFFIC);
+        let (request_sender, request_receiver) = packet_batch_channel(100_000, MAX_GOSSIP_TRAFFIC);
         let gossip_socket = Arc::new(gossip_socket);
         trace!(
             "GossipService: id: {}, listening on: {:?}",
