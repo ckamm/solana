@@ -5,7 +5,7 @@ use {
     crossbeam_channel::unbounded,
     solana_streamer::{
         packet::{Packet, PacketBatch, PacketBatchRecycler, PACKET_DATA_SIZE},
-        streamer::{receiver, PacketBatchReceiver, StreamerReceiveStats},
+        streamer::{receiver, PacketBatchReceiver, ReceiverOptions, StreamerReceiveStats},
     },
     std::{
         cmp::max,

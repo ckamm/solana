@@ -23,7 +23,7 @@ use {
         pubkey::Pubkey,
         timing::timestamp,
     },
-    solana_streamer::streamer::{self, PacketBatchReceiver, StreamerReceiveStats},
+    solana_streamer::streamer::{self, MyPacketBatchReceiver, StreamerReceiveStats},
     std::{
         collections::HashSet,
         net::UdpSocket,
@@ -146,7 +146,7 @@ impl AncestorHashesService {
     ) -> Self {
         let outstanding_requests: Arc<RwLock<OutstandingAncestorHashesRepairs>> =
             Arc::new(RwLock::new(OutstandingAncestorHashesRepairs::default()));
-        let (response_sender, response_receiver) = unbounded();
+        let (response_sender, response_receiver) = streamer::my_packet_batch_channel(usize::MAX, 10_000);
         let t_receiver = streamer::receiver(
             ancestor_hashes_request_socket.clone(),
             exit.clone(),
@@ -198,7 +198,7 @@ impl AncestorHashesService {
     /// Listen for responses to our ancestors hashes repair requests
     fn run_responses_listener(
         ancestor_hashes_request_statuses: Arc<DashMap<Slot, DeadSlotAncestorRequestStatus>>,
-        response_receiver: PacketBatchReceiver,
+        response_receiver: MyPacketBatchReceiver,
         blockstore: Arc<Blockstore>,
         outstanding_requests: Arc<RwLock<OutstandingAncestorHashesRepairs>>,
         exit: Arc<AtomicBool>,
@@ -241,7 +241,7 @@ impl AncestorHashesService {
     /// Process messages from the network
     fn process_new_packets_from_channel(
         ancestor_hashes_request_statuses: &DashMap<Slot, DeadSlotAncestorRequestStatus>,
-        response_receiver: &PacketBatchReceiver,
+        response_receiver: &MyPacketBatchReceiver,
         blockstore: &Blockstore,
         outstanding_requests: &RwLock<OutstandingAncestorHashesRepairs>,
         stats: &mut AncestorHashesResponsesStats,
@@ -250,18 +250,14 @@ impl AncestorHashesService {
         retryable_slots_sender: &RetryableSlotsSender,
     ) -> Result<()> {
         let timeout = Duration::new(1, 0);
-        let mut packet_batches = vec![response_receiver.recv_timeout(timeout)?];
-        let mut total_packets = packet_batches[0].packets.len();
+        let (mut packet_batches, _, _) = response_receiver.recv_timeout(timeout)?;
 
         let mut dropped_packets = 0;
-        while let Ok(batch) = response_receiver.try_recv() {
+        let mut total_packets = 0;
+        packet_batches.retain(|batch| {
             total_packets += batch.packets.len();
-            if packet_threshold.should_drop(total_packets) {
-                dropped_packets += batch.packets.len();
-            } else {
-                packet_batches.push(batch);
-            }
-        }
+            !packet_threshold.should_drop(total_packets)
+        });
 
         stats.dropped_packets += dropped_packets;
         stats.total_packets += total_packets;

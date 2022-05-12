@@ -8,7 +8,7 @@ use {
     solana_rayon_threadlimit::get_thread_count,
     solana_runtime::bank_forks::BankForks,
     solana_sdk::timing::timestamp,
-    solana_streamer::streamer::{self, StreamerError},
+    solana_streamer::streamer::{self, StreamerError, MyPacketBatchSender, MyPacketBatchReceiver},
     std::{
         collections::HashMap,
         net::IpAddr,
@@ -28,8 +28,8 @@ lazy_static! {
         .unwrap();
 }
 
-pub type FindPacketSenderStakeSender = Sender<Vec<PacketBatch>>;
-pub type FindPacketSenderStakeReceiver = Receiver<Vec<PacketBatch>>;
+pub type FindPacketSenderStakeSender = MyPacketBatchSender;
+pub type FindPacketSenderStakeReceiver = MyPacketBatchReceiver;
 
 #[derive(Debug, Default)]
 struct FindPacketSenderStakeStats {
@@ -40,6 +40,7 @@ struct FindPacketSenderStakeStats {
     receive_batches_time: u64,
     total_batches: u64,
     total_packets: u64,
+    max_out_queue: usize,
 }
 
 impl FindPacketSenderStakeStats {
@@ -59,6 +60,7 @@ impl FindPacketSenderStakeStats {
                     self.apply_sender_stakes_time as i64,
                     i64
                 ),
+                ("max_out_queue", self.max_out_queue as i64, i64),
                 ("send_batches_time_us", self.send_batches_time as i64, i64),
                 (
                     "receive_batches_time_ns",
@@ -70,6 +72,7 @@ impl FindPacketSenderStakeStats {
             );
             *self = FindPacketSenderStakeStats::default();
             self.last_print = now;
+            self.max_out_queue = 0;
         }
     }
 }
@@ -80,7 +83,7 @@ pub struct FindPacketSenderStakeStage {
 
 impl FindPacketSenderStakeStage {
     pub fn new(
-        packet_receiver: streamer::PacketBatchReceiver,
+        packet_receiver: MyPacketBatchReceiver,
         sender: FindPacketSenderStakeSender,
         bank_forks: Arc<RwLock<BankForks>>,
         cluster_info: Arc<ClusterInfo>,
@@ -105,7 +108,7 @@ impl FindPacketSenderStakeStage {
                         .refresh_ip_to_stake_time
                         .saturating_add(refresh_ip_to_stake_time.as_us());
 
-                    match streamer::recv_packet_batches(&packet_receiver) {
+                    match packet_receiver.recv_default_timeout() {
                         Ok((mut batches, num_packets, recv_duration)) => {
                             let num_batches = batches.len();
                             let mut apply_sender_stakes_time =
@@ -114,10 +117,12 @@ impl FindPacketSenderStakeStage {
                             apply_sender_stakes_time.stop();
 
                             let mut send_batches_time = Measure::start("send_batches_time");
-                            if let Err(e) = sender.send(batches) {
+                            if let Err(e) = sender.send_batches(batches) {
                                 info!("Sender error: {:?}", e);
                             }
                             send_batches_time.stop();
+
+                            stats.max_out_queue = std::cmp::max(stats.max_out_queue, sender.batch_count());
 
                             stats.apply_sender_stakes_time = stats
                                 .apply_sender_stakes_time
@@ -134,8 +139,8 @@ impl FindPacketSenderStakeStage {
                                 stats.total_packets.saturating_add(num_packets as u64);
                         }
                         Err(e) => match e {
-                            StreamerError::RecvTimeout(RecvTimeoutError::Disconnected) => break,
-                            StreamerError::RecvTimeout(RecvTimeoutError::Timeout) => (),
+                            RecvTimeoutError::Disconnected => break,
+                            RecvTimeoutError::Timeout => (),
                             _ => error!("error: {:?}", e),
                         },
                     }
