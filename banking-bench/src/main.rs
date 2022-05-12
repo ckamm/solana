@@ -29,7 +29,7 @@ use {
     },
     solana_streamer::{
         socket::SocketAddrSpace,
-        streamer::packet_batch_channel,
+        bounded_streamer::packet_batch_channel,
     },
     std::{
         sync::{atomic::Ordering, Arc, Mutex, RwLock},

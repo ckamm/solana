@@ -15,7 +15,7 @@ use {
     },
     solana_streamer::{
         streamer::{self, StreamerReceiveStats},
-        bounded_streamer::{BoundedPacketBatchSender, BoundedPacketBatchReceiver},
+        bounded_streamer::{packet_batch_channel, BoundedPacketBatchSender, BoundedPacketBatchReceiver},
     },
     std::{
         net::UdpSocket,
@@ -42,8 +42,8 @@ impl FetchStage {
         poh_recorder: &Arc<Mutex<PohRecorder>>,
         coalesce_ms: u64,
     ) -> (Self, BoundedPacketBatchReceiver, BoundedPacketBatchReceiver) {
-        let (sender, receiver) = streamer::packet_batch_channel(100_000, 10_000);
-        let (vote_sender, vote_receiver) = streamer::packet_batch_channel(100_000, 10_000);
+        let (sender, receiver) = packet_batch_channel(100_000, 10_000);
+        let (vote_sender, vote_receiver) = packet_batch_channel(100_000, 10_000);
         (
             Self::new_with_sender(
                 sockets,
@@ -142,7 +142,7 @@ impl FetchStage {
             .collect();
 
         let tpu_forward_stats = Arc::new(StreamerReceiveStats::new("tpu_forwards_receiver"));
-        let (forward_sender, forward_receiver) = streamer::packet_batch_channel(1024, 10_000);
+        let (forward_sender, forward_receiver) = packet_batch_channel(1024, 10_000);
         let tpu_forwards_threads: Vec<_> = tpu_forwards_sockets
             .into_iter()
             .map(|socket| {

@@ -13,7 +13,7 @@ use {
     solana_sdk::clock::{Slot, DEFAULT_MS_PER_SLOT},
     solana_streamer::{
         streamer::{self, StreamerReceiveStats},
-        bounded_streamer::{BoundedPacketBatchReceiver, BoundedPacketBatchSender},
+        bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver, BoundedPacketBatchSender},
     },
     std::{
         net::UdpSocket,
@@ -134,7 +134,7 @@ impl ShredFetchStage {
     where
         F: Fn(&mut Packet) + Send + 'static,
     {
-        let (packet_sender, packet_receiver) = streamer::packet_batch_channel(1, 10_000);
+        let (packet_sender, packet_receiver) = packet_batch_channel(1, 10_000);
         let streamers = sockets
             .into_iter()
             .map(|s| {

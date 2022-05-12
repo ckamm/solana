@@ -142,7 +142,7 @@ impl Tvu {
             ancestor_hashes_requests: ancestor_hashes_socket,
         } = sockets;
 
-        let (fetch_sender, fetch_receiver) = solana_streamer::streamer::packet_batch_channel(100_000, 10_000);
+        let (fetch_sender, fetch_receiver) = packet_batch_channel(100_000, 10_000);
 
         let repair_socket = Arc::new(repair_socket);
         let ancestor_hashes_socket = Arc::new(ancestor_hashes_socket);
@@ -158,7 +158,7 @@ impl Tvu {
             exit,
         );
 
-        let (verified_sender, verified_receiver) = solana_streamer::streamer::packet_batch_channel(100_000, 10_000);
+        let (verified_sender, verified_receiver) = packet_batch_channel(100_000, 10_000);
         let sigverify_stage = SigVerifyStage::new(
             fetch_receiver,
             verified_sender,
@@ -351,7 +351,10 @@ pub mod tests {
         solana_rpc::optimistically_confirmed_bank_tracker::OptimisticallyConfirmedBank,
         solana_runtime::bank::Bank,
         solana_sdk::signature::{Keypair, Signer},
-        solana_streamer::socket::SocketAddrSpace,
+        solana_streamer::{
+            bounded_streamer::packet_batch_channel,
+            socket::SocketAddrSpace,
+        },
         std::sync::atomic::{AtomicU64, Ordering},
     };
 

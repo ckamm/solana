@@ -25,7 +25,7 @@ use {
     },
     solana_streamer::{
         streamer::{self, StreamerReceiveStats},
-        bounded_streamer::{BoundedPacketBatchReceiver},
+        bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
     },
     std::{
         collections::HashSet,
@@ -149,7 +149,7 @@ impl AncestorHashesService {
     ) -> Self {
         let outstanding_requests: Arc<RwLock<OutstandingAncestorHashesRepairs>> =
             Arc::new(RwLock::new(OutstandingAncestorHashesRepairs::default()));
-        let (response_sender, response_receiver) = streamer::packet_batch_channel(usize::MAX, 10_000);
+        let (response_sender, response_receiver) = packet_batch_channel(usize::MAX, 10_000);
         let t_receiver = streamer::receiver(
             ancestor_hashes_request_socket.clone(),
             exit.clone(),
