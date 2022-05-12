@@ -48,6 +48,7 @@ use {
         vote_sender_types::ReplayVoteSender,
     },
     solana_sdk::{clock::Slot, pubkey::Pubkey, signature::Keypair},
+    solana_streamer::bounded_streamer::packet_batch_channel,
     std::{
         collections::HashSet,
         net::UdpSocket,
