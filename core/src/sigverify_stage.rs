@@ -24,6 +24,7 @@ use {
     thiserror::Error,
 };
 
+const RECV_MAX_PACKETS: usize = 100_000;
 const MAX_SIGVERIFY_BATCH: usize = 10_000;
 
 #[derive(Error, Debug)]
@@ -240,7 +241,7 @@ impl SigVerifyStage {
         stats: &mut SigVerifierStats,
     ) -> Result<()> {
         let (mut batches, num_packets, recv_duration) = recvr
-            .recv_duration_default_timeout()
+            .recv_duration_default_timeout(RECV_MAX_PACKETS)
             .map_err(StreamerError::from)?;
 
         let batches_len = batches.len();
@@ -440,8 +441,8 @@ mod tests {
     fn test_sigverify_stage() {
         solana_logger::setup();
         trace!("start");
-        let (packet_s, packet_r) = packet_batch_channel(10_000, 10_000);
-        let (verified_s, verified_r) = packet_batch_channel(10_000, 10_000);
+        let (packet_s, packet_r) = packet_batch_channel(10_000);
+        let (verified_s, verified_r) = packet_batch_channel(10_000);
         let verifier = TransactionSigVerifier::default();
         let stage = SigVerifyStage::new(packet_r, verified_s, verifier, "test");
 
@@ -464,7 +465,9 @@ mod tests {
         let mut received = 0;
         trace!("sent: {}", sent_len);
         loop {
-            if let Ok((mut verifieds, _)) = verified_r.recv_timeout(Duration::from_millis(10)) {
+            if let Ok((mut verifieds, _)) =
+                verified_r.recv_timeout(10_000, Duration::from_millis(10))
+            {
                 while let Some(v) = verifieds.pop() {
                     received += v.packets.len();
                     batches.push(v);

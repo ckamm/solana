@@ -6,7 +6,7 @@ use {
     solana_ledger::shred::{get_shred_slot_index_type, ShredFetchStats},
     solana_perf::{
         cuda_runtime::PinnedVec,
-        packet::{Packet, PacketBatchRecycler, PacketFlags},
+        packet::{Packet, PacketBatchRecycler, PacketFlags, PACKETS_PER_BATCH},
         recycler::Recycler,
     },
     solana_runtime::bank_forks::BankForks,
@@ -88,7 +88,7 @@ impl ShredFetchStage {
         let mut stats = ShredFetchStats::default();
         let mut packet_hasher = PacketHasher::default();
 
-        while let Ok((mut packet_batches, _)) = recvr.recv() {
+        while let Ok((mut packet_batches, _)) = recvr.recv(PACKETS_PER_BATCH) {
             if last_updated.elapsed().as_millis() as u64 > DEFAULT_MS_PER_SLOT {
                 last_updated = Instant::now();
                 packet_hasher.reset();
@@ -136,7 +136,7 @@ impl ShredFetchStage {
     where
         F: Fn(&mut Packet) + Send + 'static,
     {
-        let (packet_sender, packet_receiver) = packet_batch_channel(1, 10_000);
+        let (packet_sender, packet_receiver) = packet_batch_channel(10_000);
         let streamers = sockets
             .into_iter()
             .map(|s| {

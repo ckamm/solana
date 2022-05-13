@@ -149,7 +149,7 @@ impl AncestorHashesService {
     ) -> Self {
         let outstanding_requests: Arc<RwLock<OutstandingAncestorHashesRepairs>> =
             Arc::new(RwLock::new(OutstandingAncestorHashesRepairs::default()));
-        let (response_sender, response_receiver) = packet_batch_channel(usize::MAX, 10_000);
+        let (response_sender, response_receiver) = packet_batch_channel(10_000);
         let t_receiver = streamer::receiver(
             ancestor_hashes_request_socket.clone(),
             exit.clone(),
@@ -253,7 +253,7 @@ impl AncestorHashesService {
         retryable_slots_sender: &RetryableSlotsSender,
     ) -> Result<()> {
         let timeout = Duration::new(1, 0);
-        let (mut packet_batches, _) = response_receiver.recv_timeout(timeout)?;
+        let (mut packet_batches, _) = response_receiver.recv_timeout(usize::MAX, timeout)?;
 
         let mut dropped_packets = 0;
         let mut total_packets = 0;
@@ -893,7 +893,7 @@ mod test {
             // Set up thread to give us responses
             let ledger_path = get_tmp_ledger_path!();
             let exit = Arc::new(AtomicBool::new(false));
-            let (requests_sender, requests_receiver) = packet_batch_channel(10_000, 10_000);
+            let (requests_sender, requests_receiver) = packet_batch_channel(10_000);
             let (response_sender, response_receiver) = unbounded();
 
             // Set up blockstore for responses

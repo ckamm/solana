@@ -683,9 +683,11 @@ mod test {
                 std::thread::sleep(Duration::from_millis(1000));
             }
         });
+        let max_recv_packet_count = 10_000;
         let mut received = 0;
         loop {
-            if let Ok(_x) = receiver.recv_timeout(Duration::from_millis(500)) {
+            if let Ok(_x) = receiver.recv_timeout(max_recv_packet_count, Duration::from_millis(500))
+            {
                 received += 1;
                 info!("got {}", received);
             }
@@ -733,7 +735,7 @@ mod test {
         solana_logger::setup();
         let s = UdpSocket::bind("127.0.0.1:0").unwrap();
         let exit = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = packet_batch_channel(10_000, 10_000);
+        let (sender, receiver) = packet_batch_channel(10_000);
         let keypair = Keypair::new();
         let ip = "127.0.0.1".parse().unwrap();
         let server_address = s.local_addr().unwrap();
@@ -775,8 +777,11 @@ mod test {
         let mut all_packets = vec![];
         let now = Instant::now();
         let mut total_packets = 0;
+        let max_recv_packet_count = 10_000;
         while now.elapsed().as_secs() < 10 {
-            if let Ok((batches, packets)) = receiver.recv_timeout(Duration::from_secs(1)) {
+            if let Ok((batches, packets)) =
+                receiver.recv_timeout(max_recv_packet_count, Duration::from_secs(1))
+            {
                 total_packets += packets;
                 for batch in batches {
                     all_packets.push(batch)
@@ -805,7 +810,7 @@ mod test {
     ) {
         let s = UdpSocket::bind("127.0.0.1:0").unwrap();
         let exit = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = packet_batch_channel(10_000, 10_000);
+        let (sender, receiver) = packet_batch_channel(10_000);
         let keypair = Keypair::new();
         let ip = "127.0.0.1".parse().unwrap();
         let server_address = s.local_addr().unwrap();
@@ -849,8 +854,11 @@ mod test {
         let mut all_packets = vec![];
         let now = Instant::now();
         let mut total_packets = 0;
+        let max_recv_packet_count = 10_000;
         while now.elapsed().as_secs() < 5 {
-            if let Ok((batches, packets)) = receiver.recv_timeout(Duration::from_secs(1)) {
+            if let Ok((batches, packets)) =
+                receiver.recv_timeout(max_recv_packet_count, Duration::from_secs(1))
+            {
                 total_packets += packets;
                 for batch in batches {
                     all_packets.push(batch)

@@ -1996,6 +1996,7 @@ impl BankingStage {
             recv_timeout,
             Duration::from_millis(MAX_RECEIVE_TIME_MS_PER_ITERATION),
             MAX_RECEIVE_BATCH_SIZE_PER_ITERATION,
+            MAX_RECEIVE_BATCH_SIZE_PER_ITERATION * PACKETS_PER_BATCH,
         )?;
         recv_time.stop();
 
@@ -2209,10 +2210,10 @@ mod tests {
     fn test_banking_stage_shutdown1() {
         let genesis_config = create_genesis_config(2).genesis_config;
         let bank = Arc::new(Bank::new_no_wallclock_throttle_for_tests(&genesis_config));
-        let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
+        let (verified_sender, verified_receiver) = packet_batch_channel(10_000);
         let (gossip_verified_vote_sender, gossip_verified_vote_receiver) =
-            packet_batch_channel(10_000, 10_000);
-        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
+            packet_batch_channel(10_000);
+        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
             let blockstore = Arc::new(
@@ -2255,8 +2256,8 @@ mod tests {
         let num_extra_ticks = 2;
         let bank = Arc::new(Bank::new_no_wallclock_throttle_for_tests(&genesis_config));
         let start_hash = bank.last_blockhash();
-        let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
-        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
+        let (verified_sender, verified_receiver) = packet_batch_channel(10_000);
+        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
             let blockstore = Arc::new(
@@ -2272,7 +2273,7 @@ mod tests {
             let cluster_info = new_test_cluster_info(Node::new_localhost().info);
             let cluster_info = Arc::new(cluster_info);
             let (verified_gossip_vote_sender, verified_gossip_vote_receiver) =
-                packet_batch_channel(10_000, 10_000);
+                packet_batch_channel(10_000);
             let (gossip_vote_sender, _gossip_vote_receiver) = unbounded();
 
             let banking_stage = BankingStage::new(
@@ -2329,10 +2330,10 @@ mod tests {
         } = create_slow_genesis_config(10);
         let bank = Arc::new(Bank::new_no_wallclock_throttle_for_tests(&genesis_config));
         let start_hash = bank.last_blockhash();
-        let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
-        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
+        let (verified_sender, verified_receiver) = packet_batch_channel(10_000);
+        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000);
         let (gossip_verified_vote_sender, gossip_verified_vote_receiver) =
-            packet_batch_channel(10_000, 10_000);
+            packet_batch_channel(10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
             let blockstore = Arc::new(
@@ -2452,7 +2453,7 @@ mod tests {
             mint_keypair,
             ..
         } = create_slow_genesis_config(2);
-        let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
+        let (verified_sender, verified_receiver) = packet_batch_channel(10_000);
 
         // Process a batch that includes a transaction that receives two lamports.
         let alice = Keypair::new();
@@ -2478,8 +2479,8 @@ mod tests {
         let packet_batches = convert_from_old_verified(packet_batches);
         verified_sender.send_batches(packet_batches).unwrap();
 
-        let (vote_sender, vote_receiver) = packet_batch_channel(10_000, 10_000);
-        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
+        let (vote_sender, vote_receiver) = packet_batch_channel(10_000);
+        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
             let (gossip_vote_sender, _gossip_vote_receiver) = unbounded();
@@ -3109,7 +3110,7 @@ mod tests {
     }
 
     fn simulate_poh(
-        record_receiver: CrossbeamReceiver<Record>,
+        record_receiver: crossbeam_channel::Receiver<Record>,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
     ) -> JoinHandle<()> {
         let poh_recorder = poh_recorder.clone();

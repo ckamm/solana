@@ -428,7 +428,7 @@ mod test {
 
     fn get_packet_batches(r: BoundedPacketBatchReceiver, num_packets: &mut usize) {
         for _ in 0..10 {
-            match r.recv_timeout(Duration::new(1, 0)) {
+            match r.recv_timeout(usize::MAX, Duration::new(1, 0)) {
                 Ok((_batches, packets)) => {
                     *num_packets -= packets;
                 }
@@ -454,7 +454,7 @@ mod test {
         let addr = read.local_addr().unwrap();
         let send = UdpSocket::bind("127.0.0.1:0").expect("bind");
         let exit = Arc::new(AtomicBool::new(false));
-        let (s_reader, r_reader) = packet_batch_channel(10_000, 10_000);
+        let (s_reader, r_reader) = packet_batch_channel(10_000);
         let stats = Arc::new(StreamerReceiveStats::new("test"));
         let t_receiver = receiver(
             Arc::new(read),

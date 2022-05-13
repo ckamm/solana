@@ -2448,7 +2448,8 @@ impl ClusterInfo {
         thread_pool: &ThreadPool,
     ) -> Result<(), GossipError> {
         const RECV_TIMEOUT: Duration = Duration::from_secs(1);
-        let (batches, _) = receiver.recv_timeout(RECV_TIMEOUT)?;
+        const RECV_MAX_PACKETS: usize = 100_000;
+        let (batches, _) = receiver.recv_timeout(RECV_MAX_PACKETS, RECV_TIMEOUT)?;
         let packets = batches
             .into_iter()
             .flat_map(|batch| Vec::from(batch.packets))

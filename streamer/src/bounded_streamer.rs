@@ -15,7 +15,6 @@ use {
 struct PacketBatchChannelData {
     queue: VecDeque<PacketBatch>,
     packet_count: usize,
-    packets_batch_size: usize,
     max_queued_batches: usize,
 }
 
@@ -45,13 +44,14 @@ impl BoundedPacketBatchReceiver {
     // Returns (vec-of-batches, packet-count)
     pub fn recv_timeout(
         &self,
+        max_packet_count: usize,
         timeout: Duration,
     ) -> Result<(Vec<PacketBatch>, usize), RecvTimeoutError> {
         let deadline = Instant::now() + timeout;
         loop {
             return match self.signal_receiver.recv_deadline(deadline) {
                 Ok(()) => {
-                    if let Some(r) = self.try_recv() {
+                    if let Some(r) = self.try_recv(max_packet_count) {
                         Ok(r)
                     } else {
                         continue;
@@ -67,10 +67,11 @@ impl BoundedPacketBatchReceiver {
         recv_timeout: Duration,
         batching_timeout: Duration,
         batch_size_upperbound: usize,
+        max_packet_count: usize,
     ) -> Result<Vec<PacketBatch>, RecvTimeoutError> {
         let start = Instant::now();
-        let (mut packet_batches, _) = self.recv_timeout(recv_timeout)?;
-        while let Some((packet_batch, _)) = self.try_recv() {
+        let (mut packet_batches, _) = self.recv_timeout(max_packet_count, recv_timeout)?;
+        while let Some((packet_batch, _)) = self.try_recv(max_packet_count) {
             trace!("got more packets");
             packet_batches.extend(packet_batch);
             if start.elapsed() >= batching_timeout || packet_batches.len() >= batch_size_upperbound
@@ -82,11 +83,11 @@ impl BoundedPacketBatchReceiver {
     }
 
     // Returns (vec-of-batches, packet-count)
-    pub fn recv(&self) -> Result<(Vec<PacketBatch>, usize), RecvError> {
+    pub fn recv(&self, max_packet_count: usize) -> Result<(Vec<PacketBatch>, usize), RecvError> {
         loop {
             return match self.signal_receiver.recv() {
                 Ok(()) => {
-                    if let Some(r) = self.try_recv() {
+                    if let Some(r) = self.try_recv(max_packet_count) {
                         Ok(r)
                     } else {
                         continue;
@@ -98,14 +99,17 @@ impl BoundedPacketBatchReceiver {
     }
 
     // Returns (vec-of-batches, packet-count)
-    fn try_recv(&self) -> Option<(Vec<PacketBatch>, usize)> {
+    fn try_recv(&self, max_packet_count: usize) -> Option<(Vec<PacketBatch>, usize)> {
         let (recv_data, packets, has_more) = {
             let mut locked_data = self.data.write().unwrap();
             let mut batches = 0;
             let mut packets = 0;
             for batch in locked_data.queue.iter() {
                 let new_packets = packets + batch.packets.len();
-                if batches > 0 && new_packets > locked_data.packets_batch_size {
+                // Do we rather allow receiving 0 batches if the first batch
+                // exceeds max_packet_count, or do we allow exceeding
+                // max_packet_count?
+                if batches > 0 && new_packets > max_packet_count {
                     break;
                 }
                 packets = new_packets;
@@ -133,16 +137,20 @@ impl BoundedPacketBatchReceiver {
     }
 
     // Returns (vec-of-batches, packet-count)
-    pub fn recv_default_timeout(&self) -> Result<(Vec<PacketBatch>, usize), RecvTimeoutError> {
-        self.recv_timeout(Duration::new(1, 0))
+    pub fn recv_default_timeout(
+        &self,
+        max_packet_count: usize,
+    ) -> Result<(Vec<PacketBatch>, usize), RecvTimeoutError> {
+        self.recv_timeout(max_packet_count, Duration::new(1, 0))
     }
 
     // Returns (vec-of-batches, packet-count, duration of receive incl wait)
     pub fn recv_duration_default_timeout(
         &self,
+        max_packet_count: usize,
     ) -> Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
         let now = Instant::now();
-        match self.recv_default_timeout() {
+        match self.recv_default_timeout(max_packet_count) {
             Ok((batches, packets)) => Ok((batches, packets, now.elapsed())),
             Err(err) => Err(err),
         }
@@ -241,7 +249,6 @@ impl BoundedPacketBatchSender {
 }
 
 pub fn packet_batch_channel(
-    packets_batch_size: usize,
     max_queued_batches: usize,
 ) -> (BoundedPacketBatchSender, BoundedPacketBatchReceiver) {
     let (signal_sender, signal_receiver) = crossbeam_channel::bounded::<()>(1);
@@ -249,7 +256,6 @@ pub fn packet_batch_channel(
         queue: VecDeque::new(),
         packet_count: 0,
         max_queued_batches,
-        packets_batch_size,
     }));
     let sender = BoundedPacketBatchSender {
         signal_sender: signal_sender.clone(),
@@ -275,7 +281,7 @@ mod test {
         let num_packets = 10;
         let packets_batch_size = 50;
         let max_batches = 10;
-        let (sender, receiver) = packet_batch_channel(packets_batch_size, max_batches);
+        let (sender, receiver) = packet_batch_channel(max_batches);
 
         let mut packet_batch = PacketBatch::default();
         for _ in 0..num_packets {
@@ -289,7 +295,7 @@ mod test {
             Err(_err) => (),
         }
 
-        match receiver.recv() {
+        match receiver.recv(packets_batch_size) {
             Ok((_batches, packets)) => assert_eq!(packets, num_packets),
             Err(_err) => (),
         }
@@ -311,7 +317,7 @@ mod test {
         }
 
         // Receive batches up until the limit
-        match receiver.recv() {
+        match receiver.recv(packets_batch_size) {
             Ok((batches, packets)) => {
                 assert_eq!(batches.len(), packets_batch_size / num_packets);
                 assert_eq!(packets, packets_batch_size);
@@ -320,7 +326,7 @@ mod test {
         }
 
         // Receive the rest of the batches
-        match receiver.recv() {
+        match receiver.recv(packets_batch_size) {
             Ok((batches, packets)) => {
                 assert_eq!(batches.len(), packets_batch_size / num_packets);
                 assert_eq!(packets, packets_batch_size);

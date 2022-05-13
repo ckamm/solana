@@ -38,6 +38,8 @@ use {
     },
 };
 
+const RECV_MAX_PACKETS: usize = 100_000;
+
 type DuplicateSlotSender = Sender<Slot>;
 pub(crate) type DuplicateSlotReceiver = Receiver<Slot>;
 
@@ -354,7 +356,7 @@ where
     F: Fn(&Shred, Arc<Bank>, /*last root:*/ Slot) -> bool + Sync,
 {
     let timer = Duration::from_millis(200);
-    let (batches, num_packets) = verified_receiver.recv_timeout(timer)?;
+    let (batches, num_packets) = verified_receiver.recv_timeout(RECV_MAX_PACKETS, timer)?;
     let now = Instant::now();
     let last_root = blockstore.last_root();
     let working_bank = bank_forks.read().unwrap().working_bank();

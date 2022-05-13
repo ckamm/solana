@@ -30,6 +30,8 @@ use {
     },
 };
 
+const RECV_MAX_PACKETS: usize = 100_000;
+
 pub struct FetchStage {
     thread_hdls: Vec<JoinHandle<()>>,
 }
@@ -44,8 +46,8 @@ impl FetchStage {
         poh_recorder: &Arc<Mutex<PohRecorder>>,
         coalesce_ms: u64,
     ) -> (Self, BoundedPacketBatchReceiver, BoundedPacketBatchReceiver) {
-        let (sender, receiver) = packet_batch_channel(100_000, 10_000);
-        let (vote_sender, vote_receiver) = packet_batch_channel(100_000, 10_000);
+        let (sender, receiver) = packet_batch_channel(10_000);
+        let (vote_sender, vote_receiver) = packet_batch_channel(10_000);
         (
             Self::new_with_sender(
                 sockets,
@@ -96,7 +98,7 @@ impl FetchStage {
             packet.meta.flags |= PacketFlags::FORWARDED;
         };
 
-        let (mut packet_batches, num_packets) = recvr.recv()?;
+        let (mut packet_batches, num_packets) = recvr.recv(RECV_MAX_PACKETS)?;
         packet_batches.iter_mut().for_each(|batch| {
             batch.packets.iter_mut().for_each(mark_forwarded);
         });
@@ -144,7 +146,7 @@ impl FetchStage {
             .collect();
 
         let tpu_forward_stats = Arc::new(StreamerReceiveStats::new("tpu_forwards_receiver"));
-        let (forward_sender, forward_receiver) = packet_batch_channel(1024, 10_000);
+        let (forward_sender, forward_receiver) = packet_batch_channel(10_000);
         let tpu_forwards_threads: Vec<_> = tpu_forwards_sockets
             .into_iter()
             .map(|socket| {

@@ -19,6 +19,7 @@ use {
 };
 
 const IP_TO_STAKE_REFRESH_DURATION: Duration = Duration::from_secs(5);
+const RECV_MAX_PACKETS: usize = 100_000;
 
 lazy_static! {
     static ref PAR_THREAD_POOL: ThreadPool = rayon::ThreadPoolBuilder::new()
@@ -108,7 +109,7 @@ impl FindPacketSenderStakeStage {
                         .refresh_ip_to_stake_time
                         .saturating_add(refresh_ip_to_stake_time.as_us());
 
-                    match packet_receiver.recv_duration_default_timeout() {
+                    match packet_receiver.recv_duration_default_timeout(RECV_MAX_PACKETS) {
                         Ok((mut batches, num_packets, recv_duration)) => {
                             let num_batches = batches.len();
                             let mut apply_sender_stakes_time =

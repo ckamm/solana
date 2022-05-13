@@ -53,7 +53,8 @@ fn sink(
             return;
         }
         let timer = Duration::new(1, 0);
-        if let Ok(recv_response) = r.recv_timeout(timer) {
+        let max_recv_packets = 1024;
+        if let Ok(recv_response) = r.recv_timeout(max_recv_packets, timer) {
             let (packet_batch, _) = recv_response;
             let mut packets = 0;
             for batch in packet_batch.iter() {
@@ -112,7 +113,7 @@ fn main() -> Result<()> {
         read.set_read_timeout(Some(Duration::new(1, 0))).unwrap();
 
         addr = read.local_addr().unwrap();
-        let (s_reader, r_reader) = packet_batch_channel(1024, 10_000);
+        let (s_reader, r_reader) = packet_batch_channel(10_000);
 
         read_channels.push(r_reader);
         read_threads.push(receiver(
