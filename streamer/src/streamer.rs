@@ -98,11 +98,6 @@ impl StreamerReceiveStats {
 
 pub type Result<T> = std::result::Result<T, StreamerError>;
 
-pub struct ReceiverOptions {
-    pub coalesce_ms: u64,
-    pub use_pinned_memory: bool,
-}
-
 fn recv_loop(
     socket: &UdpSocket,
     exit: Arc<AtomicBool>,
