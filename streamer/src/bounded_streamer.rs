@@ -70,7 +70,7 @@ impl PacketBatchChannelData {
 
 enum TryRecvError {
     NoData,
-    Disconnected,
+    DisconnectedAndNoData,
 }
 
 impl BoundedPacketBatchReceiver {
@@ -86,7 +86,7 @@ impl BoundedPacketBatchReceiver {
             return match self.try_recv(max_packet_count) {
                 Ok(r) => Ok(r),
                 Err(TryRecvError::NoData) => continue,
-                Err(TryRecvError::Disconnected) => Err(RecvTimeoutError::Disconnected),
+                Err(TryRecvError::DisconnectedAndNoData) => Err(RecvTimeoutError::Disconnected),
             };
         }
     }
@@ -118,7 +118,7 @@ impl BoundedPacketBatchReceiver {
             return match self.try_recv(max_packet_count) {
                 Ok(r) => Ok(r),
                 Err(TryRecvError::NoData) => continue,
-                Err(TryRecvError::Disconnected) => Err(RecvError),
+                Err(TryRecvError::DisconnectedAndNoData) => Err(RecvError),
             };
         }
     }
@@ -127,12 +127,7 @@ impl BoundedPacketBatchReceiver {
     fn try_recv(&self, max_packet_count: usize) -> Result<(Vec<PacketBatch>, usize), TryRecvError> {
         let mut locked_data = self.data.write().unwrap();
 
-        if locked_data.sender_count == 0 {
-            drop(locked_data);
-            // notify other receivers that may currently be waiting
-            self.signal_sender.try_send(()).unwrap_or(());
-            return Err(TryRecvError::Disconnected);
-        }
+        let disconnected = locked_data.sender_count == 0;
 
         let mut batches = 0;
         let mut packets = 0;
@@ -148,7 +143,14 @@ impl BoundedPacketBatchReceiver {
             batches += 1;
         }
         if batches == 0 {
-            return Err(TryRecvError::NoData);
+            drop(locked_data);
+            return if disconnected {
+                // Wake up ourselves or other receivers again
+                self.signal_sender.try_send(()).unwrap_or(());
+                Err(TryRecvError::DisconnectedAndNoData)
+            } else {
+                Err(TryRecvError::NoData)
+            };
         }
 
         let recv_data = locked_data.queue.drain(0..batches).collect::<Vec<_>>();
@@ -157,9 +159,10 @@ impl BoundedPacketBatchReceiver {
 
         drop(locked_data);
 
-        // if there's more data in the queue then notify another receiver
-        if has_more {
-            // ignore Disconnected or Full errors
+        // If there's more data in the queue then notify another receiver.
+        // Also, if we're disconnected but still return data, wake up again to
+        // signal the disconnected error without delay.
+        if has_more || disconnected {
             self.signal_sender.try_send(()).unwrap_or(());
         }
 
