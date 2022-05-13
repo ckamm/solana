@@ -1,4 +1,4 @@
-//! The `bounded_streamer` module defines a set of services for safely & efficiently pushing & pulling data from UDP sockets.
+//! The `bounded_streamer` module defines a set of services for safely & efficiently pushing & pulling packet batches between threads.
 //!
 
 use {
@@ -74,7 +74,15 @@ enum TryRecvError {
 }
 
 impl BoundedPacketBatchReceiver {
-    // Returns (vec-of-batches, packet-count)
+    /// Receives up to `max_packet_count` packets from the channel.
+    ///
+    /// If no data is available, the function will wait up to `timeout`, then
+    /// return RectTimeoutError::Timeout if no data came in.
+    ///
+    /// If all senders have been dropped and there's no data avilable, it returns
+    /// RecvTimeoutError::Disconnected.
+    ///
+    /// Returns (list of batches, packet count)
     pub fn recv_timeout(
         &self,
         max_packet_count: usize,
@@ -111,7 +119,11 @@ impl BoundedPacketBatchReceiver {
         Ok(packet_batches)
     }
 
-    // Returns (vec-of-batches, packet-count)
+    /// Receives up to `max_packet_count` packets from the channel.
+    ///
+    /// Waits until there's data or the channel has been disconnected.
+    ///
+    /// Returns (list of batches, packet count)
     pub fn recv(&self, max_packet_count: usize) -> Result<(Vec<PacketBatch>, usize), RecvError> {
         loop {
             self.signal_receiver.recv()?;
@@ -169,7 +181,7 @@ impl BoundedPacketBatchReceiver {
         Ok((recv_data, packets))
     }
 
-    // Returns (vec-of-batches, packet-count)
+    /// Like `recv_timeout()` with a 1s timeout
     pub fn recv_default_timeout(
         &self,
         max_packet_count: usize,
@@ -177,7 +189,7 @@ impl BoundedPacketBatchReceiver {
         self.recv_timeout(max_packet_count, Duration::new(1, 0))
     }
 
-    // Returns (vec-of-batches, packet-count, duration of receive incl wait)
+    /// Like `recv_timeout()` with a 1s timeout that also measures its own runtime.
     pub fn recv_duration_default_timeout(
         &self,
         max_packet_count: usize,
@@ -189,17 +201,24 @@ impl BoundedPacketBatchReceiver {
         }
     }
 
+    /// Number of batches in the queue
     pub fn batch_count(&self) -> usize {
         self.data.read().unwrap().queue.len()
     }
 
+    /// Number of packets in the queue
     pub fn packet_count(&self) -> usize {
         self.data.read().unwrap().packet_count
     }
 }
 
 impl BoundedPacketBatchSender {
-    // Ok(true) means an existing batch was discarded
+    /// Sends a single batch.
+    ///
+    /// If the queue was full and an old batch needed to be discarded, it returns
+    /// Ok(true), otherwise Ok(false).
+    ///
+    /// SendErrors happen when all receivers have been dropped.
     pub fn send_batch(&self, batch: PacketBatch) -> Result<bool, SendError<()>> {
         if batch.packets.len() == 0 {
             return Ok(false);
@@ -228,7 +247,12 @@ impl BoundedPacketBatchSender {
         }
     }
 
-    // Ok(n) means that n batches were discarded
+    /// Sends a list of batch.
+    ///
+    /// Returns the number of old batches that needed to be dropped to make space
+    /// for the new.
+    ///
+    /// SendErrors happen when all receivers have been dropped.
     pub fn send_batches(
         &self,
         batches: Vec<PacketBatch>,
@@ -236,7 +260,7 @@ impl BoundedPacketBatchSender {
         if batches.len() == 0 {
             return Ok(0);
         }
-        // TODO: this allows adding batches without packets
+        // note: this allows adding batches without packets
         let batches_discarded = {
             let mut locked_data = self.data.write().unwrap();
             let max_queued_batches = locked_data.max_queued_batches;
@@ -272,15 +296,26 @@ impl BoundedPacketBatchSender {
         }
     }
 
+    /// Number of batches in the queue
     pub fn batch_count(&self) -> usize {
         self.data.read().unwrap().queue.len()
     }
 
+    /// Number of packets in the queue
     pub fn packet_count(&self) -> usize {
         self.data.read().unwrap().packet_count
     }
 }
 
+/// Creates the sender and receiver for a channel of packet batches.
+///
+/// The channel is multi-producer multi-consumer.
+///
+/// It is bounded to hold at most `max_queued_batches`. If more batches are
+/// pushed into the channel, the oldest queued batches will be discarded.
+///
+/// It also counts the number of packets that are available in the channel,
+/// but is not aware of a Packet's meta.discard flag.
 pub fn packet_batch_channel(
     max_queued_batches: usize,
 ) -> (BoundedPacketBatchSender, BoundedPacketBatchReceiver) {
@@ -394,7 +429,10 @@ mod test {
             Err(_err) => (),
         }
 
-        assert_eq!(receiver.recv_timeout(12, timeout).unwrap_err(), RecvTimeoutError::Timeout);
+        assert_eq!(
+            receiver.recv_timeout(12, timeout).unwrap_err(),
+            RecvTimeoutError::Timeout
+        );
 
         // CHECK: Receiving when all senders are dropped causes Disconnected
 
@@ -423,6 +461,9 @@ mod test {
             Err(_err) => (),
         }
 
-        assert_eq!(receiver.recv_timeout(12, timeout).unwrap_err(), RecvTimeoutError::Disconnected);
+        assert_eq!(
+            receiver.recv_timeout(12, timeout).unwrap_err(),
+            RecvTimeoutError::Disconnected
+        );
     }
 }
