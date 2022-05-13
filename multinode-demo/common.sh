@@ -53,11 +53,11 @@ else
       (
         set -x
         # shellcheck disable=SC2086 # Don't want to double quote
-        ./cargo nightly $CARGO_TOOLCHAIN build $maybe_release --bin $program
+        cargo $CARGO_TOOLCHAIN build $maybe_release --bin $program
       )
     fi
 
-    printf "./cargo nightly $CARGO_TOOLCHAIN run $maybe_release  --bin %s %s -- " "$program"
+    printf "cargo $CARGO_TOOLCHAIN run $maybe_release  --bin %s %s -- " "$program"
   }
 fi
 
