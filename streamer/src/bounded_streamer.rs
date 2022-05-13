@@ -268,6 +268,7 @@ mod test {
             packet_batch.packets.push(p);
         }
 
+        // Case 1: Send a single batch
         match sender.send_batch(packet_batch.clone()) {
             Ok(dropped_packet) => assert_eq!(dropped_packet, false),
             Err(_err) => (),
@@ -278,18 +279,23 @@ mod test {
             Err(_err) => (),
         }
 
+        // Case2: Fully load the queue with batches
+        let packet_batches = vec![];
         for _ in 0..max_batches {
-            match sender.send_batch(packet_batch.clone()) {
-                Ok(dropped_packet) => assert_eq!(dropped_packet, false),
-                Err(_err) => (),
-            }
+            packet_batches.push(packet_batch.clone());
+        }
+        match sender.send_batches(packet_batches) {
+            Ok(dropped_packet) => assert_eq!(dropped_packet, false),
+            Err(_err) => (),
         }
 
+        // One batch should get dropped because queue is full.
         match sender.send_batch(packet_batch.clone()) {
             Ok(dropped_packet) => assert_eq!(dropped_packet, true),
             Err(_err) => (),
         }
 
+        // Receive batches up until the limit
         match receiver.recv() {
             Ok((batches, packets)) => {
                 assert_eq!(batches.len(), batches_batch_size);
@@ -298,6 +304,7 @@ mod test {
             Err(_err) => (),
         }
 
+        // Receive the rest of the batches
         match receiver.recv() {
             Ok((batches, packets)) => {
                 assert_eq!(batches.len(), batches_batch_size);
