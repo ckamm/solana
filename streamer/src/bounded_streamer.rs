@@ -291,12 +291,18 @@ mod test {
         }
 
         match receiver.recv() {
-            Ok((_batches, packets)) => assert_eq!(packets, num_packets*batches_batch_size),
+            Ok((batches, packets)) => {
+                assert_eq!(batches.len(), batches_batch_size);
+                assert_eq!(packets, num_packets*batches_batch_size);
+            },
             Err(_err) => (),
         }
 
         match receiver.recv() {
-            Ok((_batches, packets)) => assert_eq!(packets, num_packets*batches_batch_size),
+            Ok((batches, packets)) => {
+                assert_eq!(batches.len(), batches_batch_size);
+                assert_eq!(packets, num_packets*batches_batch_size);
+            },
             Err(_err) => (),
         }
     }
