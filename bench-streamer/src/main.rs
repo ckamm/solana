@@ -2,10 +2,10 @@
 
 use {
     clap::{crate_description, crate_name, Arg, Command},
-    crossbeam_channel::unbounded,
     solana_streamer::{
+        bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
         packet::{Packet, PacketBatch, PacketBatchRecycler, PACKET_DATA_SIZE},
-        streamer::{receiver, PacketBatchReceiver, StreamerReceiveStats},
+        streamer::{receiver, StreamerReceiveStats},
     },
     std::{
         cmp::max,
@@ -43,14 +43,23 @@ fn producer(addr: &SocketAddr, exit: Arc<AtomicBool>) -> JoinHandle<()> {
     })
 }
 
-fn sink(exit: Arc<AtomicBool>, rvs: Arc<AtomicUsize>, r: PacketBatchReceiver) -> JoinHandle<()> {
+fn sink(
+    exit: Arc<AtomicBool>,
+    rvs: Arc<AtomicUsize>,
+    r: BoundedPacketBatchReceiver,
+) -> JoinHandle<()> {
     spawn(move || loop {
         if exit.load(Ordering::Relaxed) {
             return;
         }
         let timer = Duration::new(1, 0);
-        if let Ok(packet_batch) = r.recv_timeout(timer) {
-            rvs.fetch_add(packet_batch.packets.len(), Ordering::Relaxed);
+        if let Ok(recv_response) = r.recv_timeout(timer) {
+            let (packet_batch, _) = recv_response;
+            let mut packets = 0;
+            for batch in packet_batch.iter() {
+                packets += batch.packets.len();
+            }
+            rvs.fetch_add(packets, Ordering::Relaxed);
         }
     })
 }
@@ -103,7 +112,8 @@ fn main() -> Result<()> {
         read.set_read_timeout(Some(Duration::new(1, 0))).unwrap();
 
         addr = read.local_addr().unwrap();
-        let (s_reader, r_reader) = unbounded();
+        let (s_reader, r_reader) = packet_batch_channel(1024, 10_000);
+
         read_channels.push(r_reader);
         read_threads.push(receiver(
             Arc::new(read),

@@ -3,15 +3,14 @@
 
 use {
     crate::{
+        bounded_streamer::BoundedPacketBatchSender,
         packet::{self, PacketBatch, PacketBatchRecycler, PACKETS_PER_BATCH},
         sendmmsg::{batch_send, SendPktsError},
         socket::SocketAddrSpace,
     },
-    crossbeam_channel::{Receiver, RecvTimeoutError, SendError, RecvError, Sender},
+    crossbeam_channel::{Receiver, RecvTimeoutError, SendError, Sender},
     histogram::Histogram,
     solana_sdk::{packet::Packet, timing::timestamp},
-    std::collections::VecDeque,
-    std::sync::RwLock,
     std::{
         cmp::Reverse,
         collections::HashMap,
@@ -26,216 +25,6 @@ use {
     thiserror::Error,
 };
 
-struct MyPacketBatchChannelData {
-    queue: VecDeque<PacketBatch>,
-    packet_count: usize,
-    work_unit_packet_size: usize,
-    max_queued_batches: usize,
-}
-
-#[derive(Clone)]
-pub struct MyPacketBatchReceiver {
-    receiver: Receiver<()>,
-    sender: Sender<()>,
-    data: Arc<RwLock<MyPacketBatchChannelData>>,
-}
-
-#[derive(Clone)]
-pub struct MyPacketBatchSender {
-    sender: Sender<()>,
-    data: Arc<RwLock<MyPacketBatchChannelData>>,
-}
-
-impl MyPacketBatchChannelData {
-    fn add_packet_count(&mut self, amount: usize) {
-        self.packet_count = self.packet_count.saturating_add(amount);
-    }
-    fn sub_packet_count(&mut self, amount: usize) {
-        self.packet_count = self.packet_count.saturating_sub(amount);
-    }
-}
-
-impl MyPacketBatchReceiver {
-    // TODO: can return Ok(no-batches)
-    pub fn recv_timeout(
-        &self,
-        timeout: Duration,
-    ) -> std::result::Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
-        let deadline = Instant::now() + timeout;
-        loop {
-            return match self.receiver.recv_deadline(deadline) {
-                Ok(()) => {
-                    if let Some(r) = self.try_recv() {
-                        Ok(r)
-                    } else {
-                        continue;
-                    }
-                }
-                Err(err) => Err(err),
-            }
-        }
-    }
-
-    pub fn recv(&self) -> std::result::Result<(Vec<PacketBatch>, usize, Duration), RecvError> {
-        loop {
-            return match self.receiver.recv() {
-                Ok(()) => {
-                    if let Some(r) = self.try_recv() {
-                        Ok(r)
-                    } else {
-                        continue;
-                    }
-                }
-                Err(err) => Err(err),
-            }
-        }
-    }
-
-    fn try_recv(&self) -> Option<(Vec<PacketBatch>, usize, Duration)> {
-        let (recv_data, packets, has_more) = {
-            let mut locked_data = self.data.write().unwrap();
-
-            let mut batches = 0;
-            let mut packets = 0;
-            for batch in locked_data.queue.iter() {
-                let new_packets = packets + batch.packets.len();
-                if new_packets > locked_data.work_unit_packet_size {
-                    break;
-                }
-                packets = new_packets;
-                batches += 1;
-            }
-            if batches == 0 {
-                return None;
-            }
-            locked_data.sub_packet_count(packets);
-            let has_more = batches < locked_data.queue.len();
-            (
-                locked_data.queue.drain(0..batches).collect::<Vec<_>>(),
-                packets,
-                has_more,
-            )
-        };
-
-        // if there's more data than this consumer could handle,
-        // send the flag to wake another consumer
-        if has_more {
-            self.sender.send(()); // TODO: handle error?
-        }
-
-        Some((recv_data, packets, Duration::ZERO))
-    }
-
-    pub fn recv_default_timeout(&self) -> std::result::Result<(Vec<PacketBatch>, usize, Duration), RecvTimeoutError> {
-        let timer = Duration::new(1, 0);
-        self.recv_timeout(timer)
-    }
-
-    pub fn batch_count(&self) -> usize {
-        self.data.read().unwrap().queue.len()
-    }
-
-    pub fn packet_count(&self) -> usize {
-        self.data.read().unwrap().packet_count
-    }
-}
-
-impl MyPacketBatchSender {
-    // Ok(true) means an existing batch was discarded
-    pub fn send_batch(&self, batch: PacketBatch) -> std::result::Result<bool, SendError<()>> {
-        if batch.packets.len() == 0 {
-            return Ok(false);
-        }
-        let batch_discarded = {
-            let mut locked_data = self.data.write().unwrap();
-            let discarded = if locked_data.queue.len() >= locked_data.max_queued_batches {
-                if let Some(old_batch) = locked_data.queue.pop_front() {
-                    locked_data.sub_packet_count(old_batch.packets.len());
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
-            locked_data.add_packet_count(batch.packets.len());
-            locked_data.queue.push_back(batch);
-            discarded
-        };
-        if let Err(err) = self.sender.send(()) {
-            return Err(err);
-        }
-        Ok(batch_discarded)
-    }
-
-    // Ok(n) means that n batches were discarded
-    pub fn send_batches(&self, batches: Vec<PacketBatch>) -> std::result::Result<usize, SendError<()>> {
-        if batches.len() == 0 {
-            return Ok(0);
-        }
-        // TODO: this allows adding batches without packets
-        let batches_discarded = {
-            let mut locked_data = self.data.write().unwrap();
-            let max_queued_batches = locked_data.max_queued_batches;
-            let batches_to_queue = std::cmp::min(batches.len(), max_queued_batches);
-            let discard_new_batches = batches.len() - batches_to_queue;
-
-            let discard_old_batches =
-                (locked_data.queue.len() + batches_to_queue).saturating_sub(max_queued_batches);
-            let discard_old_packets = locked_data
-                .queue
-                .drain(0..discard_old_batches)
-                .map(|b| b.packets.len())
-                .sum();
-            locked_data.sub_packet_count(discard_old_packets);
-
-            let new_packets = batches
-                .iter()
-                .take(max_queued_batches)
-                .map(|b| b.packets.len())
-                .sum();
-            locked_data.add_packet_count(new_packets);
-            locked_data
-                .queue
-                .extend(batches.into_iter().take(max_queued_batches));
-
-            discard_old_batches + discard_new_batches
-        };
-        if let Err(err) = self.sender.send(()) {
-            return Err(err);
-        }
-        Ok(batches_discarded)
-    }
-
-    pub fn batch_count(&self) -> usize {
-        self.data.read().unwrap().queue.len()
-    }
-
-    pub fn packet_count(&self) -> usize {
-        self.data.read().unwrap().packet_count
-    }
-}
-
-pub fn my_packet_batch_channel(work_unit_packet_size: usize, max_queued_batches: usize) -> (MyPacketBatchSender, MyPacketBatchReceiver) {
-    let (sig_sender, sig_receiver) = crossbeam_channel::unbounded::<()>();
-    let data = Arc::new(RwLock::new(MyPacketBatchChannelData {
-        queue: VecDeque::new(),
-        packet_count: 0,
-        max_queued_batches,
-        work_unit_packet_size,
-    }));
-    let sender = MyPacketBatchSender {
-        sender: sig_sender.clone(),
-        data: data.clone(),
-    };
-    let receiver = MyPacketBatchReceiver {
-        sender: sig_sender,
-        receiver: sig_receiver,
-        data: data,
-    };
-    (sender, receiver)
-}
-
 pub type PacketBatchReceiver = Receiver<PacketBatch>;
 pub type PacketBatchSender = Sender<PacketBatch>;
 
@@ -248,7 +37,7 @@ pub enum StreamerError {
     RecvTimeout(#[from] RecvTimeoutError),
 
     #[error("send packets error")]
-    Send(#[from] SendError<PacketBatch>),
+    Send(#[from] SendError<()>),
 
     #[error(transparent)]
     SendPktsError(#[from] SendPktsError),
@@ -258,6 +47,7 @@ pub struct StreamerReceiveStats {
     pub name: &'static str,
     pub packets_count: AtomicUsize,
     pub packet_batches_count: AtomicUsize,
+    pub dropped_batches_count: AtomicUsize,
     pub full_packet_batches_count: AtomicUsize,
     pub max_channel_len: AtomicUsize,
 }
@@ -268,6 +58,7 @@ impl StreamerReceiveStats {
             name,
             packets_count: AtomicUsize::default(),
             packet_batches_count: AtomicUsize::default(),
+            dropped_batches_count: AtomicUsize::default(),
             full_packet_batches_count: AtomicUsize::default(),
             max_channel_len: AtomicUsize::default(),
         }
@@ -287,6 +78,11 @@ impl StreamerReceiveStats {
                 i64
             ),
             (
+                "dropped_batches_count",
+                self.dropped_batches_count.swap(0, Ordering::Relaxed) as i64,
+                i64
+            ),
+            (
                 "full_packet_batches_count",
                 self.full_packet_batches_count.swap(0, Ordering::Relaxed) as i64,
                 i64
@@ -302,10 +98,15 @@ impl StreamerReceiveStats {
 
 pub type Result<T> = std::result::Result<T, StreamerError>;
 
+pub struct ReceiverOptions {
+    pub coalesce_ms: u64,
+    pub use_pinned_memory: bool,
+}
+
 fn recv_loop(
     socket: &UdpSocket,
     exit: Arc<AtomicBool>,
-    packet_batch_sender: &PacketBatchSender,
+    packet_batch_sender: &BoundedPacketBatchSender,
     recycler: &PacketBatchRecycler,
     stats: &StreamerReceiveStats,
     coalesce_ms: u64,
@@ -335,12 +136,11 @@ fn recv_loop(
 
                     packets_count.fetch_add(len, Ordering::Relaxed);
                     packet_batches_count.fetch_add(1, Ordering::Relaxed);
-                    max_channel_len.fetch_max(packet_batch_sender.len(), Ordering::Relaxed);
+                    max_channel_len.fetch_max(packet_batch_sender.batch_count(), Ordering::Relaxed);
                     if len == PACKETS_PER_BATCH {
                         full_packet_batches_count.fetch_add(1, Ordering::Relaxed);
                     }
-
-                    packet_batch_sender.send(packet_batch)?;
+                    packet_batch_sender.send_batch(packet_batch)?;
                 }
                 break;
             }
@@ -351,7 +151,7 @@ fn recv_loop(
 pub fn receiver(
     socket: Arc<UdpSocket>,
     exit: Arc<AtomicBool>,
-    packet_batch_sender: PacketBatchSender,
+    packet_batch_sender: BoundedPacketBatchSender,
     recycler: PacketBatchRecycler,
     stats: Arc<StreamerReceiveStats>,
     coalesce_ms: u64,
@@ -608,6 +408,7 @@ mod test {
     use {
         super::*,
         crate::{
+            bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
             packet::{Packet, PacketBatch, PACKET_DATA_SIZE},
             streamer::{receiver, responder},
         },
@@ -625,14 +426,14 @@ mod test {
         },
     };
 
-    fn get_packet_batches(r: PacketBatchReceiver, num_packets: &mut usize) {
+    fn get_packet_batches(r: BoundedPacketBatchReceiver, num_packets: &mut usize) {
         for _ in 0..10 {
-            let packet_batch_res = r.recv_timeout(Duration::new(1, 0));
-            if packet_batch_res.is_err() {
-                continue;
+            match r.recv_timeout(Duration::new(1, 0)) {
+                Ok((_batches, packets)) => {
+                    *num_packets -= packets;
+                }
+                Err(_err) => continue,
             }
-
-            *num_packets -= packet_batch_res.unwrap().packets.len();
 
             if *num_packets == 0 {
                 break;
@@ -653,7 +454,7 @@ mod test {
         let addr = read.local_addr().unwrap();
         let send = UdpSocket::bind("127.0.0.1:0").expect("bind");
         let exit = Arc::new(AtomicBool::new(false));
-        let (s_reader, r_reader) = unbounded();
+        let (s_reader, r_reader) = packet_batch_channel(10_000, 10_000);
         let stats = Arc::new(StreamerReceiveStats::new("test"));
         let t_receiver = receiver(
             Arc::new(read),

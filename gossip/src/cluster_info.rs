@@ -69,9 +69,8 @@ use {
         transaction::Transaction,
     },
     solana_streamer::{
-        packet,
-        socket::SocketAddrSpace,
-        streamer::{PacketBatchReceiver, PacketBatchSender},
+        bounded_streamer::BoundedPacketBatchReceiver, packet, socket::SocketAddrSpace,
+        streamer::PacketBatchSender,
     },
     solana_vote_program::vote_state::MAX_LOCKOUT_HISTORY,
     std::{
@@ -104,7 +103,7 @@ pub const MAX_CRDS_OBJECT_SIZE: usize = 928;
 /// A hard limit on incoming gossip messages
 /// Chosen to be able to handle 1Gbps of pure gossip traffic
 /// 128MB/PACKET_DATA_SIZE
-const MAX_GOSSIP_TRAFFIC: usize = 128_000_000 / PACKET_DATA_SIZE;
+pub const MAX_GOSSIP_TRAFFIC: usize = 128_000_000 / PACKET_DATA_SIZE;
 /// Max size of serialized crds-values in a Protocol::PushMessage packet. This
 /// is equal to PACKET_DATA_SIZE minus serialized size of an empty push
 /// message: Protocol::PushMessage(Pubkey::default(), Vec::default())
@@ -2444,23 +2443,16 @@ impl ClusterInfo {
     // handling of requests/messages.
     fn run_socket_consume(
         &self,
-        receiver: &PacketBatchReceiver,
+        receiver: &BoundedPacketBatchReceiver,
         sender: &Sender<Vec<(/*from:*/ SocketAddr, Protocol)>>,
         thread_pool: &ThreadPool,
     ) -> Result<(), GossipError> {
         const RECV_TIMEOUT: Duration = Duration::from_secs(1);
-        let packets: Vec<_> = receiver.recv_timeout(RECV_TIMEOUT)?.packets.into();
-        let mut packets = VecDeque::from(packets);
-        for packet_batch in receiver.try_iter() {
-            packets.extend(packet_batch.packets.iter().cloned());
-            let excess_count = packets.len().saturating_sub(MAX_GOSSIP_TRAFFIC);
-            if excess_count > 0 {
-                packets.drain(0..excess_count);
-                self.stats
-                    .gossip_packets_dropped_count
-                    .add_relaxed(excess_count as u64);
-            }
-        }
+        let (batches, _) = receiver.recv_timeout(RECV_TIMEOUT)?;
+        let packets = batches
+            .into_iter()
+            .flat_map(|batch| Vec::from(batch.packets))
+            .collect::<Vec<Packet>>();
         self.stats
             .packets_received_count
             .add_relaxed(packets.len() as u64);
@@ -2535,7 +2527,7 @@ impl ClusterInfo {
 
     pub(crate) fn start_socket_consume_thread(
         self: Arc<Self>,
-        receiver: PacketBatchReceiver,
+        receiver: BoundedPacketBatchReceiver,
         sender: Sender<Vec<(/*from:*/ SocketAddr, Protocol)>>,
         exit: Arc<AtomicBool>,
     ) -> JoinHandle<()> {
@@ -2822,8 +2814,12 @@ impl Node {
             Self::get_gossip_port(gossip_addr, port_range, bind_ip_addr);
         let (tvu_port, tvu) = Self::bind(bind_ip_addr, port_range);
         let (tvu_forwards_port, tvu_forwards) = Self::bind(bind_ip_addr, port_range);
-        let ((tpu_port, tpu), (_tpu_quic_port, tpu_quic)) =
-            bind_two_consecutive_in_range(bind_ip_addr, port_range).unwrap();
+        let (tpu_port, tpu_sockets) =
+            multi_bind_in_range(bind_ip_addr, port_range, 32).expect("tpu multi_bind");
+        let (_tpu_port_quic, tpu_quic) = Self::bind(
+            bind_ip_addr,
+            (tpu_port + QUIC_PORT_OFFSET, tpu_port + QUIC_PORT_OFFSET + 1),
+        );
         let (tpu_forwards_port, tpu_forwards) = Self::bind(bind_ip_addr, port_range);
         let (tpu_vote_port, tpu_vote) = Self::bind(bind_ip_addr, port_range);
         let (_, retransmit_socket) = Self::bind(bind_ip_addr, port_range);
@@ -2859,7 +2855,7 @@ impl Node {
                 ip_echo: Some(ip_echo),
                 tvu: vec![tvu],
                 tvu_forwards: vec![tvu_forwards],
-                tpu: vec![tpu],
+                tpu: tpu_sockets,
                 tpu_forwards: vec![tpu_forwards],
                 tpu_vote: vec![tpu_vote],
                 broadcast: vec![broadcast],

@@ -10,7 +10,7 @@ use {
         qos_service::QosService,
         unprocessed_packet_batches::{self, *},
     },
-    crossbeam_channel::{Receiver as CrossbeamReceiver, RecvTimeoutError},
+    crossbeam_channel::RecvTimeoutError,
     histogram::Histogram,
     itertools::Itertools,
     min_max_heap::MinMaxHeap,
@@ -52,6 +52,7 @@ use {
         },
         transport::TransportError,
     },
+    solana_streamer::bounded_streamer::BoundedPacketBatchReceiver,
     solana_transaction_status::token_balances::{
         collect_token_balances, TransactionTokenBalancesSet,
     },
@@ -382,9 +383,9 @@ impl BankingStage {
     pub fn new(
         cluster_info: &Arc<ClusterInfo>,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
-        verified_receiver: CrossbeamReceiver<Vec<PacketBatch>>,
-        tpu_verified_vote_receiver: CrossbeamReceiver<Vec<PacketBatch>>,
-        verified_vote_receiver: CrossbeamReceiver<Vec<PacketBatch>>,
+        verified_receiver: BoundedPacketBatchReceiver,
+        tpu_verified_vote_receiver: BoundedPacketBatchReceiver,
+        verified_vote_receiver: BoundedPacketBatchReceiver,
         transaction_status_sender: Option<TransactionStatusSender>,
         gossip_vote_sender: ReplayVoteSender,
         cost_model: Arc<RwLock<CostModel>>,
@@ -406,9 +407,9 @@ impl BankingStage {
     pub fn new_num_threads(
         cluster_info: &Arc<ClusterInfo>,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
-        verified_receiver: CrossbeamReceiver<Vec<PacketBatch>>,
-        tpu_verified_vote_receiver: CrossbeamReceiver<Vec<PacketBatch>>,
-        verified_vote_receiver: CrossbeamReceiver<Vec<PacketBatch>>,
+        verified_receiver: BoundedPacketBatchReceiver,
+        tpu_verified_vote_receiver: BoundedPacketBatchReceiver,
+        verified_vote_receiver: BoundedPacketBatchReceiver,
         num_threads: u32,
         transaction_status_sender: Option<TransactionStatusSender>,
         gossip_vote_sender: ReplayVoteSender,
@@ -991,7 +992,7 @@ impl BankingStage {
 
     #[allow(clippy::too_many_arguments)]
     fn process_loop(
-        verified_receiver: &CrossbeamReceiver<Vec<PacketBatch>>,
+        verified_receiver: &BoundedPacketBatchReceiver,
         poh_recorder: &Arc<Mutex<PohRecorder>>,
         cluster_info: &ClusterInfo,
         recv_start: &mut Instant,
@@ -1979,29 +1980,10 @@ impl BankingStage {
             .collect()
     }
 
-    fn receive_until(
-        verified_receiver: &CrossbeamReceiver<Vec<PacketBatch>>,
-        recv_timeout: Duration,
-        batching_timeout: Duration,
-        batch_size_upperbound: usize,
-    ) -> Result<Vec<PacketBatch>, RecvTimeoutError> {
-        let start = Instant::now();
-        let mut packet_batches = verified_receiver.recv_timeout(recv_timeout)?;
-        while let Ok(packet_batch) = verified_receiver.try_recv() {
-            trace!("got more packets");
-            packet_batches.extend(packet_batch);
-            if start.elapsed() >= batching_timeout || packet_batches.len() >= batch_size_upperbound
-            {
-                break;
-            }
-        }
-        Ok(packet_batches)
-    }
-
     #[allow(clippy::too_many_arguments)]
     /// Receive incoming packets, push into unprocessed buffer with packet indexes
     fn receive_and_buffer_packets(
-        verified_receiver: &CrossbeamReceiver<Vec<PacketBatch>>,
+        verified_receiver: &BoundedPacketBatchReceiver,
         recv_start: &mut Instant,
         recv_timeout: Duration,
         id: u32,
@@ -2010,8 +1992,7 @@ impl BankingStage {
         slot_metrics_tracker: &mut LeaderSlotMetricsTracker,
     ) -> Result<(), RecvTimeoutError> {
         let mut recv_time = Measure::start("receive_and_buffer_packets_recv");
-        let packet_batches = Self::receive_until(
-            verified_receiver,
+        let packet_batches = verified_receiver.recv_until_empty_timeout_or_max_packets(
             recv_timeout,
             Duration::from_millis(MAX_RECEIVE_TIME_MS_PER_ITERATION),
             MAX_RECEIVE_BATCH_SIZE_PER_ITERATION,
@@ -2201,7 +2182,9 @@ mod tests {
                 VersionedTransaction,
             },
         },
-        solana_streamer::{recvmmsg::recv_mmsg, socket::SocketAddrSpace},
+        solana_streamer::{
+            bounded_streamer::packet_batch_channel, recvmmsg::recv_mmsg, socket::SocketAddrSpace,
+        },
         solana_transaction_status::{TransactionStatusMeta, VersionedTransactionWithStatusMeta},
         solana_vote_program::vote_transaction,
         std::{
@@ -2226,9 +2209,10 @@ mod tests {
     fn test_banking_stage_shutdown1() {
         let genesis_config = create_genesis_config(2).genesis_config;
         let bank = Arc::new(Bank::new_no_wallclock_throttle_for_tests(&genesis_config));
-        let (verified_sender, verified_receiver) = unbounded();
-        let (gossip_verified_vote_sender, gossip_verified_vote_receiver) = unbounded();
-        let (tpu_vote_sender, tpu_vote_receiver) = unbounded();
+        let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
+        let (gossip_verified_vote_sender, gossip_verified_vote_receiver) =
+            packet_batch_channel(10_000, 10_000);
+        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
             let blockstore = Arc::new(
@@ -2271,8 +2255,8 @@ mod tests {
         let num_extra_ticks = 2;
         let bank = Arc::new(Bank::new_no_wallclock_throttle_for_tests(&genesis_config));
         let start_hash = bank.last_blockhash();
-        let (verified_sender, verified_receiver) = unbounded();
-        let (tpu_vote_sender, tpu_vote_receiver) = unbounded();
+        let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
+        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
             let blockstore = Arc::new(
@@ -2287,7 +2271,8 @@ mod tests {
                 create_test_recorder(&bank, &blockstore, Some(poh_config), None);
             let cluster_info = new_test_cluster_info(Node::new_localhost().info);
             let cluster_info = Arc::new(cluster_info);
-            let (verified_gossip_vote_sender, verified_gossip_vote_receiver) = unbounded();
+            let (verified_gossip_vote_sender, verified_gossip_vote_receiver) =
+                packet_batch_channel(10_000, 10_000);
             let (gossip_vote_sender, _gossip_vote_receiver) = unbounded();
 
             let banking_stage = BankingStage::new(
@@ -2344,9 +2329,10 @@ mod tests {
         } = create_slow_genesis_config(10);
         let bank = Arc::new(Bank::new_no_wallclock_throttle_for_tests(&genesis_config));
         let start_hash = bank.last_blockhash();
-        let (verified_sender, verified_receiver) = unbounded();
-        let (tpu_vote_sender, tpu_vote_receiver) = unbounded();
-        let (gossip_verified_vote_sender, gossip_verified_vote_receiver) = unbounded();
+        let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
+        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
+        let (gossip_verified_vote_sender, gossip_verified_vote_receiver) =
+            packet_batch_channel(10_000, 10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
             let blockstore = Arc::new(
@@ -2407,7 +2393,7 @@ mod tests {
                 .collect();
             let packet_batches = convert_from_old_verified(packet_batches);
             verified_sender // no_ver, anf, tx
-                .send(packet_batches)
+                .send_batches(packet_batches)
                 .unwrap();
 
             drop(verified_sender);
@@ -2466,12 +2452,34 @@ mod tests {
             mint_keypair,
             ..
         } = create_slow_genesis_config(2);
-        let (verified_sender, verified_receiver) = unbounded();
+        let (verified_sender, verified_receiver) = packet_batch_channel(10_000, 10_000);
 
+        // Process a batch that includes a transaction that receives two lamports.
         let alice = Keypair::new();
+        let tx =
+            system_transaction::transfer(&mint_keypair, &alice.pubkey(), 2, genesis_config.hash());
 
-        let (vote_sender, vote_receiver) = unbounded();
-        let (tpu_vote_sender, tpu_vote_receiver) = unbounded();
+        let packet_batches = to_packet_batches(&[tx], 1);
+        let packet_batches = packet_batches
+            .into_iter()
+            .map(|batch| (batch, vec![1u8]))
+            .collect();
+        let packet_batches = convert_from_old_verified(packet_batches);
+        verified_sender.send_batches(packet_batches).unwrap();
+
+        // Process a second batch that uses the same from account, so conflicts with above TX
+        let tx =
+            system_transaction::transfer(&mint_keypair, &alice.pubkey(), 1, genesis_config.hash());
+        let packet_batches = to_packet_batches(&[tx], 1);
+        let packet_batches = packet_batches
+            .into_iter()
+            .map(|batch| (batch, vec![1u8]))
+            .collect();
+        let packet_batches = convert_from_old_verified(packet_batches);
+        verified_sender.send_batches(packet_batches).unwrap();
+
+        let (vote_sender, vote_receiver) = packet_batch_channel(10_000, 10_000);
+        let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000, 10_000);
         let ledger_path = get_tmp_ledger_path_auto_delete!();
         {
             let (gossip_vote_sender, _gossip_vote_receiver) = unbounded();
@@ -2505,41 +2513,9 @@ mod tests {
                     Arc::new(RwLock::new(CostModel::default())),
                 );
 
-                // Process a batch that includes a transaction that receives two lamports.
-                let tx = system_transaction::transfer(
-                    &mint_keypair,
-                    &alice.pubkey(),
-                    2,
-                    genesis_config.hash(),
-                );
-
-                let packet_batches = to_packet_batches(&[tx], 1);
-                let packet_batches = packet_batches
-                    .into_iter()
-                    .map(|batch| (batch, vec![1u8]))
-                    .collect();
-                let packet_batches = convert_from_old_verified(packet_batches);
-                verified_sender.send(packet_batches).unwrap();
-
-                sleep(Duration::from_millis(200));
-                // Process a second batch that uses the same from account, so conflicts with above TX
-                let tx = system_transaction::transfer(
-                    &mint_keypair,
-                    &alice.pubkey(),
-                    1,
-                    genesis_config.hash(),
-                );
-                let packet_batches = to_packet_batches(&[tx], 1);
-                let packet_batches = packet_batches
-                    .into_iter()
-                    .map(|batch| (batch, vec![1u8]))
-                    .collect();
-                let packet_batches = convert_from_old_verified(packet_batches);
-                verified_sender.send(packet_batches).unwrap();
-
                 // wait for banking_stage to eat the packets
-                while bank.get_balance(&alice.pubkey()) < 2 {
-                    sleep(Duration::from_millis(100));
+                while bank.get_balance(&alice.pubkey()) < 1 {
+                    sleep(Duration::from_millis(10));
                 }
                 exit.store(true, Ordering::Relaxed);
                 poh_service.join().unwrap();
@@ -2563,10 +2539,10 @@ mod tests {
                     .for_each(|x| assert_eq!(*x, Ok(())));
             }
 
-            // Assert the user holds two lamports, not three. If the stage only outputs one
-            // entry, then the second transaction will be rejected, because it drives
+            // Assert the user doesn't hold three lamports. If the stage only outputs one
+            // entry, then one of the transactions will be rejected, because it drives
             // the account balance below zero before the credit is added.
-            assert_eq!(bank.get_balance(&alice.pubkey()), 2);
+            assert!(bank.get_balance(&alice.pubkey()) != 3);
         }
         Blockstore::destroy(ledger_path.path()).unwrap();
     }
