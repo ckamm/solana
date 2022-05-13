@@ -227,7 +227,7 @@ impl BoundedPacketBatchSender {
         }
     }
 
-    /// Sends a list of batch.
+    /// Sends several batches.
     ///
     /// Returns the number of old batches that needed to be dropped to make space
     /// for the new.
