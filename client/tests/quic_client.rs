@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use {
-        crossbeam_channel::unbounded,
         solana_client::{
             quic_client::QuicTpuConnection,
             tpu_connection::{ClientStats, TpuConnection},
@@ -60,19 +59,19 @@ mod tests {
             .send_wire_transaction_batch_async(packets, stats)
             .is_ok());
 
-        let mut all_packets = vec![];
+        let mut all_batches: Vec<PacketBatch> = vec![];
         let now = Instant::now();
         let mut total_packets = 0;
         while now.elapsed().as_secs() < 5 {
-            if let Ok(packets) = receiver.recv_timeout(usize::MAX, Duration::from_secs(1)) {
-                total_packets += packets.packets.len();
-                all_packets.push(packets)
-            }
+            let (&mut batches, packets) = receiver.recv_timeout(usize::MAX, Duration::from_secs(1))?;
+            total_packets += packets;
+            all_batches.append(batches);
+
             if total_packets >= num_expected_packets {
                 break;
             }
         }
-        for batch in all_packets {
+        for batch in all_batches {
             for p in &batch.packets {
                 assert_eq!(p.meta.size, num_bytes);
             }
