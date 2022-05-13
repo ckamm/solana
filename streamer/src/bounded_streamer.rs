@@ -16,6 +16,7 @@ struct PacketBatchChannelData {
     queue: VecDeque<PacketBatch>,
     packet_count: usize,
     max_queued_batches: usize,
+    sender_count: usize,
 }
 
 #[derive(Clone)]
@@ -25,10 +26,37 @@ pub struct BoundedPacketBatchReceiver {
     data: Arc<RwLock<PacketBatchChannelData>>,
 }
 
-#[derive(Clone)]
 pub struct BoundedPacketBatchSender {
     signal_sender: Sender<()>,
     data: Arc<RwLock<PacketBatchChannelData>>,
+}
+
+impl Clone for BoundedPacketBatchSender {
+    fn clone(&self) -> Self {
+        {
+            let mut locked_data = self.data.write().unwrap();
+            locked_data.sender_count += 1;
+        }
+        Self {
+            signal_sender: self.signal_sender.clone(),
+            data: self.data.clone(),
+        }
+    }
+}
+
+impl Drop for BoundedPacketBatchSender {
+    fn drop(&mut self) {
+        let dropping_last_sender = {
+            let mut locked_data = self.data.write().unwrap();
+            locked_data.sender_count -= 1;
+            locked_data.sender_count == 0
+        };
+        if dropping_last_sender {
+            // notify receivers, otherwise they may be waiting forever on a
+            // disconnected channel
+            self.signal_sender.try_send(()).unwrap_or(());
+        }
+    }
 }
 
 impl PacketBatchChannelData {
@@ -40,6 +68,11 @@ impl PacketBatchChannelData {
     }
 }
 
+enum TryRecvError {
+    NoData,
+    Disconnected,
+}
+
 impl BoundedPacketBatchReceiver {
     // Returns (vec-of-batches, packet-count)
     pub fn recv_timeout(
@@ -49,15 +82,11 @@ impl BoundedPacketBatchReceiver {
     ) -> Result<(Vec<PacketBatch>, usize), RecvTimeoutError> {
         let deadline = Instant::now() + timeout;
         loop {
-            return match self.signal_receiver.recv_deadline(deadline) {
-                Ok(()) => {
-                    if let Some(r) = self.try_recv(max_packet_count) {
-                        Ok(r)
-                    } else {
-                        continue;
-                    }
-                }
-                Err(err) => Err(err),
+            self.signal_receiver.recv_deadline(deadline)?;
+            return match self.try_recv(max_packet_count) {
+                Ok(r) => Ok(r),
+                Err(TryRecvError::NoData) => continue,
+                Err(TryRecvError::Disconnected) => Err(RecvTimeoutError::Disconnected),
             };
         }
     }
@@ -71,7 +100,7 @@ impl BoundedPacketBatchReceiver {
     ) -> Result<Vec<PacketBatch>, RecvTimeoutError> {
         let start = Instant::now();
         let (mut packet_batches, _) = self.recv_timeout(max_packet_count, recv_timeout)?;
-        while let Some((packet_batch, _)) = self.try_recv(max_packet_count) {
+        while let Ok((packet_batch, _)) = self.try_recv(max_packet_count) {
             trace!("got more packets");
             packet_batches.extend(packet_batch);
             if start.elapsed() >= batching_timeout || packet_batches.len() >= batch_size_upperbound
@@ -85,55 +114,56 @@ impl BoundedPacketBatchReceiver {
     // Returns (vec-of-batches, packet-count)
     pub fn recv(&self, max_packet_count: usize) -> Result<(Vec<PacketBatch>, usize), RecvError> {
         loop {
-            return match self.signal_receiver.recv() {
-                Ok(()) => {
-                    if let Some(r) = self.try_recv(max_packet_count) {
-                        Ok(r)
-                    } else {
-                        continue;
-                    }
-                }
-                Err(err) => Err(err),
+            self.signal_receiver.recv()?;
+            return match self.try_recv(max_packet_count) {
+                Ok(r) => Ok(r),
+                Err(TryRecvError::NoData) => continue,
+                Err(TryRecvError::Disconnected) => Err(RecvError),
             };
         }
     }
 
     // Returns (vec-of-batches, packet-count)
-    fn try_recv(&self, max_packet_count: usize) -> Option<(Vec<PacketBatch>, usize)> {
-        let (recv_data, packets, has_more) = {
-            let mut locked_data = self.data.write().unwrap();
-            let mut batches = 0;
-            let mut packets = 0;
-            for batch in locked_data.queue.iter() {
-                let new_packets = packets + batch.packets.len();
-                // Do we rather allow receiving 0 batches if the first batch
-                // exceeds max_packet_count, or do we allow exceeding
-                // max_packet_count?
-                if batches > 0 && new_packets > max_packet_count {
-                    break;
-                }
-                packets = new_packets;
-                batches += 1;
-            }
-            if batches == 0 {
-                return None;
-            }
-            locked_data.sub_packet_count(packets);
-            let has_more = batches < locked_data.queue.len();
-            (
-                locked_data.queue.drain(0..batches).collect::<Vec<_>>(),
-                packets,
-                has_more,
-            )
-        };
+    fn try_recv(&self, max_packet_count: usize) -> Result<(Vec<PacketBatch>, usize), TryRecvError> {
+        let mut locked_data = self.data.write().unwrap();
 
-        // if there's more data in the queue, notify another receiver
+        if locked_data.sender_count == 0 {
+            drop(locked_data);
+            // notify other receivers that may currently be waiting
+            self.signal_sender.try_send(()).unwrap_or(());
+            return Err(TryRecvError::Disconnected);
+        }
+
+        let mut batches = 0;
+        let mut packets = 0;
+        for batch in locked_data.queue.iter() {
+            let new_packets = packets + batch.packets.len();
+            // Do we rather allow receiving 0 batches if the first batch
+            // exceeds max_packet_count, or do we allow exceeding
+            // max_packet_count?
+            if batches > 0 && new_packets > max_packet_count {
+                break;
+            }
+            packets = new_packets;
+            batches += 1;
+        }
+        if batches == 0 {
+            return Err(TryRecvError::NoData);
+        }
+
+        let recv_data = locked_data.queue.drain(0..batches).collect::<Vec<_>>();
+        locked_data.sub_packet_count(packets);
+        let has_more = batches < locked_data.queue.len();
+
+        drop(locked_data);
+
+        // if there's more data in the queue then notify another receiver
         if has_more {
             // ignore Disconnected or Full errors
             self.signal_sender.try_send(()).unwrap_or(());
         }
 
-        Some((recv_data, packets))
+        Ok((recv_data, packets))
     }
 
     // Returns (vec-of-batches, packet-count)
@@ -256,6 +286,7 @@ pub fn packet_batch_channel(
         queue: VecDeque::new(),
         packet_count: 0,
         max_queued_batches,
+        sender_count: 1,
     }));
     let sender = BoundedPacketBatchSender {
         signal_sender: signal_sender.clone(),
