@@ -262,7 +262,7 @@ mod test {
         let max_batches = 10;
         let (sender, receiver) = packet_batch_channel(batches_batch_size, max_batches);
         
-        let packet_batch = PacketBatch::default();
+        let mut packet_batch = PacketBatch::default();
         for _ in 0..num_packets {
             let p = Packet::default();
             packet_batch.packets.push(p);
