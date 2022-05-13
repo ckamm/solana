@@ -326,7 +326,7 @@ impl ServeRepair {
     ) -> Result<()> {
         //TODO cache connections
         let timeout = Duration::new(1, 0);
-        let (mut packet_batches, total_packets) =
+        let (packet_batches, total_packets) =
             requests_receiver.recv_timeout(packet_threshold.threshold(), timeout)?;
 
         stats.total_packets += total_packets;
