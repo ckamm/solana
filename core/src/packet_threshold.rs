@@ -47,6 +47,10 @@ impl DynamicPacketToProcessThreshold {
             self.max_packets = threshold_update.calculate(self.max_packets);
         }
     }
+
+    pub fn threshold(&mut self) -> usize {
+        self.max_packets
+    }
 }
 
 #[cfg(test)]
