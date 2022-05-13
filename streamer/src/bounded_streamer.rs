@@ -280,7 +280,7 @@ mod test {
         }
 
         // Case2: Fully load the queue with batches
-        let packet_batches = vec![];
+        let mut packet_batches = vec![];
         for _ in 0..max_batches+1 {
             packet_batches.push(packet_batch.clone());
         }
