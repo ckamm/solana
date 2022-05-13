@@ -98,21 +98,18 @@ impl BoundedPacketBatchReceiver {
 
     fn try_recv(&self) -> Option<(Vec<PacketBatch>, usize)> {
         let (recv_data, packets) = {
-            println!("Getting the mutex");
             let mut locked_data = self.data.write().unwrap();
-            println!("Got the mutex");
             let mut batches = 0;
             let mut packets = 0;
             for batch in locked_data.queue.iter() {
                 let new_packets = packets + batch.packets.len();
-                if (batches > 0 && new_packets > locked_data.batches_batch_size) {
+                if batches > 0 && new_packets > locked_data.batches_batch_size {
                     break;
                 }
                 packets = new_packets;
                 batches += 1;
             }
             if batches == 0 {
-                println!("Batches is zero");
                 return None;
             }
             locked_data.sub_packet_count(packets);
@@ -270,24 +267,14 @@ mod test {
             packet_batch.packets.push(p);
         }
 
-        println!("Sending batch");
         match sender.send_batch(packet_batch) {
-            Ok(_x) => {
-                println!("Send success!");
-            }
-            Err(_err) => {
-                println!("Send Fail!");
-            }
+            Ok(dropped_packet) => assert_eq!(dropped_packet, false),
+            Err(_err) => _,
         }
 
         match receiver.recv() {
-            Ok((_batches, packets)) => {
-                assert_eq!(packets, num_packets);
-                println!("PASS!");
-            }
-            Err(_err) => {
-                println!("Error!");
-            }
+            Ok((_batches, packets)) => assert_eq!(packets, num_packets),
+            Err(_err) => _,
         }
     }
 }
