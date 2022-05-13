@@ -1,7 +1,10 @@
 //! The `shred_fetch_stage` pulls shreds from UDP sockets and sends it to a channel.
 
 use {
-    crate::packet_hasher::PacketHasher,
+    crate::{
+        packet_hasher::PacketHasher,
+        tpu::DEFAULT_MAX_QUEUED_BATCHES,
+    },
     lru::LruCache,
     solana_ledger::shred::{get_shred_slot_index_type, ShredFetchStats},
     solana_perf::{
@@ -136,7 +139,7 @@ impl ShredFetchStage {
     where
         F: Fn(&mut Packet) + Send + 'static,
     {
-        let (packet_sender, packet_receiver) = packet_batch_channel(10_000);
+        let (packet_sender, packet_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let streamers = sockets
             .into_iter()
             .map(|s| {

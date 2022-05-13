@@ -6,7 +6,11 @@
 //! if perf-libs are available
 
 use {
-    crate::{find_packet_sender_stake_stage, sigverify},
+    crate::{
+        find_packet_sender_stake_stage,
+        sigverify,
+        tpu::DEFAULT_MAX_QUEUED_BATCHES,
+    },
     core::time::Duration,
     crossbeam_channel::{RecvTimeoutError, SendError},
     itertools::Itertools,
@@ -441,8 +445,8 @@ mod tests {
     fn test_sigverify_stage() {
         solana_logger::setup();
         trace!("start");
-        let (packet_s, packet_r) = packet_batch_channel(10_000);
-        let (verified_s, verified_r) = packet_batch_channel(10_000);
+        let (packet_s, packet_r) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
+        let (verified_s, verified_r) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let verifier = TransactionSigVerifier::default();
         let stage = SigVerifyStage::new(packet_r, verified_s, verifier, "test");
 

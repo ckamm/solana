@@ -5,6 +5,7 @@ use {
     pkcs8::{der::Document, AlgorithmIdentifier, ObjectIdentifier},
     quinn::{Endpoint, EndpointConfig, IdleTimeout, IncomingUniStreams, ServerConfig, VarInt},
     rcgen::{CertificateParams, DistinguishedName, DnType, SanType},
+    solana_core::tpu::DEFAULT_MAX_QUEUED_BATCHES,
     solana_perf::packet::PacketBatch,
     solana_sdk::{
         packet::{Packet, PACKET_DATA_SIZE},
@@ -735,7 +736,7 @@ mod test {
         solana_logger::setup();
         let s = UdpSocket::bind("127.0.0.1:0").unwrap();
         let exit = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = packet_batch_channel(10_000);
+        let (sender, receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let keypair = Keypair::new();
         let ip = "127.0.0.1".parse().unwrap();
         let server_address = s.local_addr().unwrap();
@@ -810,7 +811,7 @@ mod test {
     ) {
         let s = UdpSocket::bind("127.0.0.1:0").unwrap();
         let exit = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = packet_batch_channel(10_000);
+        let (sender, receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let keypair = Keypair::new();
         let ip = "127.0.0.1".parse().unwrap();
         let server_address = s.local_addr().unwrap();

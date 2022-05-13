@@ -1,5 +1,8 @@
 use {
-    crate::serve_repair::ServeRepair,
+    crate::{
+        serve_repair::ServeRepair,
+        tpu::DEFAULT_MAX_QUEUED_BATCHES,
+    },
     crossbeam_channel::{unbounded, Sender},
     solana_ledger::blockstore::Blockstore,
     solana_perf::recycler::Recycler,
@@ -28,7 +31,7 @@ impl ServeRepairService {
         stats_reporter_sender: Sender<Box<dyn FnOnce() + Send>>,
         exit: &Arc<AtomicBool>,
     ) -> Self {
-        let (request_sender, request_receiver) = packet_batch_channel(10_000);
+        let (request_sender, request_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let serve_repair_socket = Arc::new(serve_repair_socket);
         trace!(
             "ServeRepairService: id: {}, listening on: {:?}",

@@ -2,6 +2,7 @@
 
 use {
     clap::{crate_description, crate_name, Arg, Command},
+    solana_core::tpu::DEFAULT_MAX_QUEUED_BATCHES,
     solana_streamer::{
         bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
         packet::{Packet, PacketBatch, PacketBatchRecycler, PACKET_DATA_SIZE},
@@ -113,7 +114,7 @@ fn main() -> Result<()> {
         read.set_read_timeout(Some(Duration::new(1, 0))).unwrap();
 
         addr = read.local_addr().unwrap();
-        let (s_reader, r_reader) = packet_batch_channel(10_000);
+        let (s_reader, r_reader) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
 
         read_channels.push(r_reader);
         read_threads.push(receiver(

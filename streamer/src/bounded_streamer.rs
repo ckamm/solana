@@ -77,7 +77,7 @@ impl BoundedPacketBatchReceiver {
     /// Receives up to `max_packet_count` packets from the channel.
     ///
     /// If no data is available, the function will wait up to `timeout`, then
-    /// return RectTimeoutError::Timeout if no data came in.
+    /// return RecvTimeoutError::Timeout if no data came in.
     ///
     /// If all senders have been dropped and there's no data avilable, it returns
     /// RecvTimeoutError::Disconnected.

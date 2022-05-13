@@ -26,7 +26,7 @@ use {
         ledger_cleanup_service::{DEFAULT_MAX_LEDGER_SHREDS, DEFAULT_MIN_MAX_LEDGER_SHREDS},
         system_monitor_service::SystemMonitorService,
         tower_storage,
-        tpu::{DEFAULT_TPU_COALESCE_MS, DEFAULT_TPU_MAX_QUEUED_BATCHES_UDP},
+        tpu::{DEFAULT_TPU_COALESCE_MS, DEFAULT_MAX_QUEUED_BATCHES},
         validator::{is_snapshot_config_valid, Validator, ValidatorConfig, ValidatorStartProgress},
     },
     solana_gossip::{cluster_info::Node, contact_info::ContactInfo},
@@ -2157,7 +2157,7 @@ pub fn main() {
     let tpu_coalesce_ms =
         value_t!(matches, "tpu_coalesce_ms", u64).unwrap_or(DEFAULT_TPU_COALESCE_MS);
     let tpu_max_queued_batches_udp = value_t!(matches, "tpu_max_queued_batches_udp", usize)
-        .unwrap_or(DEFAULT_TPU_MAX_QUEUED_BATCHES_UDP);
+        .unwrap_or(DEFAULT_MAX_QUEUED_BATCHES);
     let wal_recovery_mode = matches
         .value_of("wal_recovery_mode")
         .map(BlockstoreRecoveryMode::from);

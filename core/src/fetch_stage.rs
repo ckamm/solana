@@ -4,6 +4,7 @@ use {
     crate::{
         banking_stage::HOLD_TRANSACTIONS_SLOT_OFFSET,
         result::{Error, Result},
+        tpu::DEFAULT_MAX_QUEUED_BATCHES,
     },
     crossbeam_channel::RecvTimeoutError,
     solana_metrics::{inc_new_counter_debug, inc_new_counter_info},
@@ -46,8 +47,8 @@ impl FetchStage {
         poh_recorder: &Arc<Mutex<PohRecorder>>,
         coalesce_ms: u64,
     ) -> (Self, BoundedPacketBatchReceiver, BoundedPacketBatchReceiver) {
-        let (sender, receiver) = packet_batch_channel(10_000);
-        let (vote_sender, vote_receiver) = packet_batch_channel(10_000);
+        let (sender, receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
+        let (vote_sender, vote_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         (
             Self::new_with_sender(
                 sockets,
@@ -146,7 +147,7 @@ impl FetchStage {
             .collect();
 
         let tpu_forward_stats = Arc::new(StreamerReceiveStats::new("tpu_forwards_receiver"));
-        let (forward_sender, forward_receiver) = packet_batch_channel(10_000);
+        let (forward_sender, forward_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let tpu_forwards_threads: Vec<_> = tpu_forwards_sockets
             .into_iter()
             .map(|socket| {

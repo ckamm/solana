@@ -10,6 +10,7 @@ use {
     },
     crossbeam_channel::{Receiver, RecvTimeoutError, SendError, Sender},
     histogram::Histogram,
+    solana_core::tpu::DEFAULT_MAX_QUEUED_BATCHES,
     solana_sdk::{packet::Packet, timing::timestamp},
     std::{
         cmp::Reverse,
@@ -449,7 +450,7 @@ mod test {
         let addr = read.local_addr().unwrap();
         let send = UdpSocket::bind("127.0.0.1:0").expect("bind");
         let exit = Arc::new(AtomicBool::new(false));
-        let (s_reader, r_reader) = packet_batch_channel(10_000);
+        let (s_reader, r_reader) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let stats = Arc::new(StreamerReceiveStats::new("test"));
         let t_receiver = receiver(
             Arc::new(read),

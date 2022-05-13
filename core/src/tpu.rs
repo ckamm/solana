@@ -44,11 +44,8 @@ use {
 
 pub const DEFAULT_TPU_COALESCE_MS: u64 = 5;
 
-/// The default maximum number of batches in the queue that leaves the
-/// fetch stage.
-///
 /// 10k batches means up to 1.3M packets, roughly 1.6GB of memory
-pub const DEFAULT_TPU_MAX_QUEUED_BATCHES_UDP: usize = 10_000;
+pub const DEFAULT_MAX_QUEUED_BATCHES: usize = 10_000;
 
 /// Timeout interval when joining threads during TPU close
 const TPU_THREADS_JOIN_TIMEOUT_SECONDS: u64 = 10;
@@ -151,9 +148,9 @@ impl Tpu {
             "tpu-vote-find-packet-sender-stake",
         );
 
-        let (quic_packet_sender, quic_packet_receiver) = packet_batch_channel(10_000);
+        let (quic_packet_sender, quic_packet_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let (quic_find_packet_sender_stake_sender, quic_find_packet_sender_stake_receiver) =
-            packet_batch_channel(10_000);
+            packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
 
         let quic_find_packet_sender_stake_stage = FindPacketSenderStakeStage::new(
             quic_packet_receiver,
@@ -163,7 +160,7 @@ impl Tpu {
             "tpu-find-packet-sender-stake",
         );
 
-        let (verified_sender, verified_receiver) = packet_batch_channel(10_000);
+        let (verified_sender, verified_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
 
         let staked_nodes = Arc::new(RwLock::new(HashMap::new()));
         let staked_nodes_updater_service = StakedNodesUpdaterService::new(
@@ -219,7 +216,7 @@ impl Tpu {
         };
 
         let (verified_gossip_vote_packets_sender, verified_gossip_vote_packets_receiver) =
-            packet_batch_channel(10_000);
+            packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let cluster_info_vote_listener = ClusterInfoVoteListener::new(
             exit.clone(),
             cluster_info.clone(),
