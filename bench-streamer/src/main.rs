@@ -2,9 +2,10 @@
 
 use {
     clap::{crate_description, crate_name, Arg, Command},
-    solana_core::tpu::DEFAULT_MAX_QUEUED_BATCHES,
     solana_streamer::{
-        bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
+        bounded_streamer::{
+            packet_batch_channel, BoundedPacketBatchReceiver, DEFAULT_MAX_QUEUED_BATCHES,
+        },
         packet::{Packet, PacketBatch, PacketBatchRecycler, PACKET_DATA_SIZE},
         streamer::{receiver, StreamerReceiveStats},
     },

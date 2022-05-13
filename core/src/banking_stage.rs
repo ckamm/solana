@@ -8,7 +8,6 @@ use {
             LeaderExecuteAndCommitTimings, RecordTransactionsTimings,
         },
         qos_service::QosService,
-        tpu::DEFAULT_MAX_QUEUED_BATCHES,
         unprocessed_packet_batches::{self, *},
     },
     crossbeam_channel::RecvTimeoutError,
@@ -53,7 +52,7 @@ use {
         },
         transport::TransportError,
     },
-    solana_streamer::bounded_streamer::BoundedPacketBatchReceiver,
+    solana_streamer::bounded_streamer::{BoundedPacketBatchReceiver, DEFAULT_MAX_QUEUED_BATCHES},
     solana_transaction_status::token_balances::{
         collect_token_balances, TransactionTokenBalancesSet,
     },
@@ -1992,7 +1991,8 @@ impl BankingStage {
         slot_metrics_tracker: &mut LeaderSlotMetricsTracker,
     ) -> Result<(), RecvTimeoutError> {
         let mut recv_time = Measure::start("receive_and_buffer_packets_recv");
-        let (packet_batches, packet_count) = verified_receiver.recv_timeout(MAX_RECEIVE_PACKETS_PER_ITERATION, recv_timeout)?;
+        let (packet_batches, packet_count) =
+            verified_receiver.recv_timeout(MAX_RECEIVE_PACKETS_PER_ITERATION, recv_timeout)?;
         recv_time.stop();
 
         let packet_batches_len = packet_batches.len();

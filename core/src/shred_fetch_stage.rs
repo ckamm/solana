@@ -1,10 +1,7 @@
 //! The `shred_fetch_stage` pulls shreds from UDP sockets and sends it to a channel.
 
 use {
-    crate::{
-        packet_hasher::PacketHasher,
-        tpu::DEFAULT_MAX_QUEUED_BATCHES,
-    },
+    crate::packet_hasher::PacketHasher,
     lru::LruCache,
     solana_ledger::shred::{get_shred_slot_index_type, ShredFetchStats},
     solana_perf::{
@@ -17,6 +14,7 @@ use {
     solana_streamer::{
         bounded_streamer::{
             packet_batch_channel, BoundedPacketBatchReceiver, BoundedPacketBatchSender,
+            DEFAULT_MAX_QUEUED_BATCHES,
         },
         streamer::{self, StreamerReceiveStats},
     },

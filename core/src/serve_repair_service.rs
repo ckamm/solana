@@ -1,13 +1,10 @@
 use {
-    crate::{
-        serve_repair::ServeRepair,
-        tpu::DEFAULT_MAX_QUEUED_BATCHES,
-    },
+    crate::serve_repair::ServeRepair,
     crossbeam_channel::{unbounded, Sender},
     solana_ledger::blockstore::Blockstore,
     solana_perf::recycler::Recycler,
     solana_streamer::{
-        bounded_streamer::packet_batch_channel,
+        bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
         socket::SocketAddrSpace,
         streamer::{self, StreamerReceiveStats},
     },

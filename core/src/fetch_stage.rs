@@ -4,7 +4,6 @@ use {
     crate::{
         banking_stage::HOLD_TRANSACTIONS_SLOT_OFFSET,
         result::{Error, Result},
-        tpu::DEFAULT_MAX_QUEUED_BATCHES,
     },
     crossbeam_channel::RecvTimeoutError,
     solana_metrics::{inc_new_counter_debug, inc_new_counter_info},
@@ -17,6 +16,7 @@ use {
     solana_streamer::{
         bounded_streamer::{
             packet_batch_channel, BoundedPacketBatchReceiver, BoundedPacketBatchSender,
+            DEFAULT_MAX_QUEUED_BATCHES,
         },
         streamer::{self, StreamerReceiveStats},
     },

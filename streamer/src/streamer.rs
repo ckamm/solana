@@ -3,14 +3,13 @@
 
 use {
     crate::{
-        bounded_streamer::BoundedPacketBatchSender,
+        bounded_streamer::{BoundedPacketBatchSender, DEFAULT_MAX_QUEUED_BATCHES},
         packet::{self, PacketBatch, PacketBatchRecycler, PACKETS_PER_BATCH},
         sendmmsg::{batch_send, SendPktsError},
         socket::SocketAddrSpace,
     },
     crossbeam_channel::{Receiver, RecvTimeoutError, SendError, Sender},
     histogram::Histogram,
-    solana_core::tpu::DEFAULT_MAX_QUEUED_BATCHES,
     solana_sdk::{packet::Packet, timing::timestamp},
     std::{
         cmp::Reverse,

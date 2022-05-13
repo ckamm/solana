@@ -22,7 +22,6 @@ use {
         sigverify_shreds::ShredSigVerifier,
         sigverify_stage::SigVerifyStage,
         tower_storage::TowerStorage,
-        tpu::DEFAULT_MAX_QUEUED_BATCHES,
         voting_service::VotingService,
         warm_quic_cache_service::WarmQuicCacheService,
     },
@@ -49,7 +48,7 @@ use {
         vote_sender_types::ReplayVoteSender,
     },
     solana_sdk::{clock::Slot, pubkey::Pubkey, signature::Keypair},
-    solana_streamer::bounded_streamer::packet_batch_channel,
+    solana_streamer::bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
     std::{
         collections::HashSet,
         net::UdpSocket,

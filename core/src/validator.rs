@@ -20,7 +20,7 @@ use {
         stats_reporter_service::StatsReporterService,
         system_monitor_service::{verify_udp_stats_access, SystemMonitorService},
         tower_storage::TowerStorage,
-        tpu::{Tpu, TpuSockets, DEFAULT_TPU_COALESCE_MS, DEFAULT_MAX_QUEUED_BATCHES},
+        tpu::{Tpu, TpuSockets, DEFAULT_TPU_COALESCE_MS},
         tvu::{Tvu, TvuConfig, TvuSockets},
     },
     crossbeam_channel::{bounded, unbounded, Receiver},
@@ -97,7 +97,7 @@ use {
         timing::timestamp,
     },
     solana_send_transaction_service::send_transaction_service,
-    solana_streamer::socket::SocketAddrSpace,
+    solana_streamer::{bounded_streamer::DEFAULT_MAX_QUEUED_BATCHES, socket::SocketAddrSpace},
     solana_vote_program::vote_state::VoteState,
     std::{
         collections::{HashMap, HashSet},

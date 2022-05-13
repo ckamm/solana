@@ -6,11 +6,7 @@
 //! if perf-libs are available
 
 use {
-    crate::{
-        find_packet_sender_stake_stage,
-        sigverify,
-        tpu::DEFAULT_MAX_QUEUED_BATCHES,
-    },
+    crate::{find_packet_sender_stake_stage, sigverify},
     core::time::Duration,
     crossbeam_channel::{RecvTimeoutError, SendError},
     itertools::Itertools,
@@ -20,7 +16,10 @@ use {
         sigverify::{count_valid_packets, shrink_batches, Deduper},
     },
     solana_sdk::timing,
-    solana_streamer::{bounded_streamer::BoundedPacketBatchSender, streamer::StreamerError},
+    solana_streamer::{
+        bounded_streamer::{BoundedPacketBatchSender, DEFAULT_MAX_QUEUED_BATCHES},
+        streamer::StreamerError,
+    },
     std::{
         thread::{self, Builder, JoinHandle},
         time::Instant,

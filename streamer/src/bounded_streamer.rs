@@ -12,6 +12,9 @@ use {
     },
 };
 
+/// 10k batches means up to 1.3M packets, roughly 1.6GB of memory
+pub const DEFAULT_MAX_QUEUED_BATCHES: usize = 10_000;
+
 struct PacketBatchChannelData {
     queue: VecDeque<PacketBatch>,
     packet_count: usize,

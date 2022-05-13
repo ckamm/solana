@@ -30,7 +30,7 @@ use {
     },
     solana_sdk::signature::Keypair,
     solana_streamer::{
-        bounded_streamer::packet_batch_channel,
+        bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
         quic::{spawn_server, MAX_STAKED_CONNECTIONS, MAX_UNSTAKED_CONNECTIONS},
     },
     std::{
@@ -43,9 +43,6 @@ use {
 };
 
 pub const DEFAULT_TPU_COALESCE_MS: u64 = 5;
-
-/// 10k batches means up to 1.3M packets, roughly 1.6GB of memory
-pub const DEFAULT_MAX_QUEUED_BATCHES: usize = 10_000;
 
 /// Timeout interval when joining threads during TPU close
 const TPU_THREADS_JOIN_TIMEOUT_SECONDS: u64 = 10;
@@ -148,7 +145,8 @@ impl Tpu {
             "tpu-vote-find-packet-sender-stake",
         );
 
-        let (quic_packet_sender, quic_packet_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
+        let (quic_packet_sender, quic_packet_receiver) =
+            packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let (quic_find_packet_sender_stake_sender, quic_find_packet_sender_stake_receiver) =
             packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
 

@@ -5,10 +5,7 @@ use {
     log::*,
     rand::{thread_rng, Rng},
     rayon::prelude::*,
-    solana_core::{
-        banking_stage::BankingStage,
-        tpu::{DEFAULT_MAX_QUEUED_BATCHES},
-    },
+    solana_core::banking_stage::BankingStage,
     solana_gossip::cluster_info::{ClusterInfo, Node},
     solana_ledger::{
         blockstore::Blockstore,
@@ -30,7 +27,10 @@ use {
         timing::{duration_as_us, timestamp},
         transaction::Transaction,
     },
-    solana_streamer::{bounded_streamer::packet_batch_channel, socket::SocketAddrSpace},
+    solana_streamer::{
+        bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
+        socket::SocketAddrSpace,
+    },
     std::{
         sync::{atomic::Ordering, Arc, Mutex, RwLock},
         thread::sleep,
