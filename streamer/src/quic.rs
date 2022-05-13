@@ -1,5 +1,5 @@
 use {
-    crate::bounded_streamer::{BoundedPacketBatchSender, DEFAULT_MAX_QUEUED_BATCHES},
+    crate::bounded_streamer::BoundedPacketBatchSender,
     futures_util::stream::StreamExt,
     pem::Pem,
     pkcs8::{der::Document, AlgorithmIdentifier, ObjectIdentifier},
@@ -603,7 +603,9 @@ pub fn spawn_server(
 mod test {
     use {
         super::*,
-        crate::bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
+        crate::bounded_streamer::{
+            packet_batch_channel, BoundedPacketBatchReceiver, DEFAULT_MAX_QUEUED_BATCHES,
+        },
         quinn::{ClientConfig, NewConnection},
         solana_sdk::quic::QUIC_KEEP_ALIVE_MS,
         std::{net::SocketAddr, time::Instant},

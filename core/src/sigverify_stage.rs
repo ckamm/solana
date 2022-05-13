@@ -16,10 +16,7 @@ use {
         sigverify::{count_valid_packets, shrink_batches, Deduper},
     },
     solana_sdk::timing,
-    solana_streamer::{
-        bounded_streamer::{BoundedPacketBatchSender, DEFAULT_MAX_QUEUED_BATCHES},
-        streamer::StreamerError,
-    },
+    solana_streamer::{bounded_streamer::BoundedPacketBatchSender, streamer::StreamerError},
     std::{
         thread::{self, Builder, JoinHandle},
         time::Instant,
@@ -396,7 +393,7 @@ mod tests {
             packet::{to_packet_batches, Packet},
             test_tx::test_tx,
         },
-        solana_streamer::bounded_streamer::packet_batch_channel,
+        solana_streamer::bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
     };
 
     fn count_non_discard(packet_batches: &[PacketBatch]) -> usize {

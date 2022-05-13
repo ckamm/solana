@@ -41,7 +41,7 @@ use {
         slot_hashes,
         transaction::Transaction,
     },
-    solana_streamer::bounded_streamer::{BoundedPacketBatchSender, DEFAULT_MAX_QUEUED_BATCHES},
+    solana_streamer::bounded_streamer::BoundedPacketBatchSender,
     std::{
         collections::{HashMap, HashSet},
         iter::repeat,
@@ -819,7 +819,7 @@ mod tests {
             pubkey::Pubkey,
             signature::{Keypair, Signature, Signer},
         },
-        solana_streamer::bounded_streamer::packet_batch_channel,
+        solana_streamer::bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
         solana_vote_program::{vote_state::Vote, vote_transaction},
         std::{
             collections::BTreeSet,

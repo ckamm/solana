@@ -52,7 +52,7 @@ use {
         },
         transport::TransportError,
     },
-    solana_streamer::bounded_streamer::{BoundedPacketBatchReceiver, DEFAULT_MAX_QUEUED_BATCHES},
+    solana_streamer::bounded_streamer::BoundedPacketBatchReceiver,
     solana_transaction_status::token_balances::{
         collect_token_balances, TransactionTokenBalancesSet,
     },
@@ -2178,7 +2178,9 @@ mod tests {
             },
         },
         solana_streamer::{
-            bounded_streamer::packet_batch_channel, recvmmsg::recv_mmsg, socket::SocketAddrSpace,
+            bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
+            recvmmsg::recv_mmsg,
+            socket::SocketAddrSpace,
         },
         solana_transaction_status::{TransactionStatusMeta, VersionedTransactionWithStatusMeta},
         solana_vote_program::vote_transaction,

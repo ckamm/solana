@@ -3,7 +3,7 @@
 
 use {
     crate::{
-        bounded_streamer::{BoundedPacketBatchSender, DEFAULT_MAX_QUEUED_BATCHES},
+        bounded_streamer::BoundedPacketBatchSender,
         packet::{self, PacketBatch, PacketBatchRecycler, PACKETS_PER_BATCH},
         sendmmsg::{batch_send, SendPktsError},
         socket::SocketAddrSpace,
@@ -403,7 +403,9 @@ mod test {
     use {
         super::*,
         crate::{
-            bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
+            bounded_streamer::{
+                packet_batch_channel, BoundedPacketBatchReceiver, DEFAULT_MAX_QUEUED_BATCHES,
+            },
             packet::{Packet, PacketBatch, PACKET_DATA_SIZE},
             streamer::{receiver, responder},
         },
