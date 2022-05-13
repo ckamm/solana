@@ -99,26 +99,6 @@ impl BoundedPacketBatchReceiver {
         }
     }
 
-    pub fn recv_until_empty_timeout_or_max_packets(
-        &self,
-        recv_timeout: Duration,
-        batching_timeout: Duration,
-        batch_size_upperbound: usize,
-        max_packet_count: usize,
-    ) -> Result<Vec<PacketBatch>, RecvTimeoutError> {
-        let start = Instant::now();
-        let (mut packet_batches, _) = self.recv_timeout(max_packet_count, recv_timeout)?;
-        while let Ok((packet_batch, _)) = self.try_recv(max_packet_count) {
-            trace!("got more packets");
-            packet_batches.extend(packet_batch);
-            if start.elapsed() >= batching_timeout || packet_batches.len() >= batch_size_upperbound
-            {
-                break;
-            }
-        }
-        Ok(packet_batches)
-    }
-
     /// Receives up to `max_packet_count` packets from the channel.
     ///
     /// Waits until there's data or the channel has been disconnected.

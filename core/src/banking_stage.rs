@@ -87,8 +87,7 @@ const MIN_THREADS_BANKING: u32 = 1;
 const MIN_TOTAL_THREADS: u32 = NUM_VOTE_PROCESSING_THREADS + MIN_THREADS_BANKING;
 const UNPROCESSED_BUFFER_STEP_SIZE: usize = 128;
 
-const MAX_RECEIVE_BATCH_SIZE_PER_ITERATION: usize = 50_000;
-const MAX_RECEIVE_TIME_MS_PER_ITERATION: u64 = 50;
+const MAX_RECEIVE_PACKETS_PER_ITERATION: usize = 100_000;
 
 pub struct ProcessTransactionBatchOutput {
     // The number of transactions filtered out by the cost model
@@ -1992,16 +1991,10 @@ impl BankingStage {
         slot_metrics_tracker: &mut LeaderSlotMetricsTracker,
     ) -> Result<(), RecvTimeoutError> {
         let mut recv_time = Measure::start("receive_and_buffer_packets_recv");
-        let packet_batches = verified_receiver.recv_until_empty_timeout_or_max_packets(
-            recv_timeout,
-            Duration::from_millis(MAX_RECEIVE_TIME_MS_PER_ITERATION),
-            MAX_RECEIVE_BATCH_SIZE_PER_ITERATION,
-            MAX_RECEIVE_BATCH_SIZE_PER_ITERATION * PACKETS_PER_BATCH,
-        )?;
+        let (packet_batches, packet_count) = verified_receiver.recv_timeout(MAX_RECEIVE_PACKETS_PER_ITERATION, recv_timeout)?;
         recv_time.stop();
 
         let packet_batches_len = packet_batches.len();
-        let packet_count: usize = packet_batches.iter().map(|x| x.packets.len()).sum();
         debug!(
             "@{:?} process start stalled for: {:?}ms txs: {} id: {}",
             timestamp(),
