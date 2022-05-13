@@ -98,8 +98,9 @@ impl BoundedPacketBatchReceiver {
 
     fn try_recv(&self) -> Option<(Vec<PacketBatch>, usize)> {
         let (recv_data, packets) = {
+            println!("Getting the mutex");
             let mut locked_data = self.data.write().unwrap();
-
+            println!("Got the mutex");
             let mut batches = 0;
             let mut packets = 0;
             for batch in locked_data.queue.iter() {
@@ -111,6 +112,7 @@ impl BoundedPacketBatchReceiver {
                 batches += 1;
             }
             if batches == 0 {
+                println!("Batches is zero");
                 return None;
             }
             locked_data.sub_packet_count(packets);
