@@ -298,7 +298,7 @@ mod test {
         // Receive batches up until the limit
         match receiver.recv() {
             Ok((batches, packets)) => {
-                assert_eq!(batches.len(), packets_batch_size);
+                assert_eq!(batches.len(), packets_batch_size/num_packets);
                 assert_eq!(packets, num_packets*packets_batch_size);
             },
             Err(_err) => (),
@@ -307,7 +307,7 @@ mod test {
         // Receive the rest of the batches
         match receiver.recv() {
             Ok((batches, packets)) => {
-                assert_eq!(batches.len(), packets_batch_size);
+                assert_eq!(batches.len(), packets_batch_size/num_packets);
                 assert_eq!(packets, num_packets*packets_batch_size);
             },
             Err(_err) => (),
