@@ -468,7 +468,7 @@ mod tests {
         trace!("sent: {}", sent_len);
         loop {
             if let Ok((mut verifieds, _)) =
-                verified_r.recv_timeout(10_000, Duration::from_millis(10))
+                verified_r.recv_timeout(sent_len, Duration::from_millis(10))
             {
                 while let Some(v) = verifieds.pop() {
                     received += v.packets.len();

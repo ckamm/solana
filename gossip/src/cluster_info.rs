@@ -138,8 +138,6 @@ const MIN_STAKE_FOR_GOSSIP: u64 = solana_sdk::native_token::LAMPORTS_PER_SOL;
 const MIN_NUM_STAKED_NODES: usize = 500;
 /// Maximum amount of time to wait for batches in the receive loop.
 const RECV_TIMEOUT: Duration = Duration::from_secs(1);
-/// Maximum packets to receive per loop for QoS reasons.
-const RECV_MAX_PACKETS: usize = 100_000;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClusterInfoError {
@@ -2451,14 +2449,14 @@ impl ClusterInfo {
         sender: &Sender<Vec<(/*from:*/ SocketAddr, Protocol)>>,
         thread_pool: &ThreadPool,
     ) -> Result<(), GossipError> {
-        let (batches, _) = receiver.recv_timeout(RECV_MAX_PACKETS, RECV_TIMEOUT)?;
+        let (batches, num_packets) = receiver.recv_timeout(MAX_GOSSIP_TRAFFIC, RECV_TIMEOUT)?;
         let packets = batches
             .into_iter()
             .flat_map(|batch| Vec::from(batch.packets))
             .collect::<Vec<Packet>>();
         self.stats
             .packets_received_count
-            .add_relaxed(packets.len() as u64);
+            .add_relaxed(num_packets as u64);
         let verify_packet = |packet: Packet| {
             let data = &packet.data[..packet.meta.size];
             let protocol: Protocol = limited_deserialize(data).ok()?;
