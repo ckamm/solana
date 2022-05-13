@@ -268,7 +268,7 @@ mod test {
             packet_batch.packets.push(p);
         }
 
-        match sender.send_batch(packet_batch) {
+        match sender.send_batch(packet_batch.clone()) {
             Ok(dropped_packet) => assert_eq!(dropped_packet, false),
             Err(_err) => (),
         }
@@ -279,13 +279,13 @@ mod test {
         }
 
         for _ in 0..max_batches {
-            match sender.send_batch(packet_batch) {
+            match sender.send_batch(packet_batch.clone()) {
                 Ok(dropped_packet) => assert_eq!(dropped_packet, false),
                 Err(_err) => (),
             }
         }
 
-        match sender.send_batch(packet_batch) {
+        match sender.send_batch(packet_batch.clone()) {
             Ok(dropped_packet) => assert_eq!(dropped_packet, true),
             Err(_err) => (),
         }
