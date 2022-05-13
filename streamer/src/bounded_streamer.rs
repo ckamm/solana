@@ -15,7 +15,7 @@ use {
 struct PacketBatchChannelData {
     queue: VecDeque<PacketBatch>,
     packet_count: usize,
-    batches_batch_size: usize,
+    packets_batch_size: usize,
     max_queued_batches: usize,
 }
 
@@ -102,7 +102,7 @@ impl BoundedPacketBatchReceiver {
             let mut packets = 0;
             for batch in locked_data.queue.iter() {
                 let new_packets = packets + batch.packets.len();
-                if batches > 0 && new_packets > locked_data.batches_batch_size {
+                if batches > 0 && new_packets > locked_data.packets_batch_size {
                     break;
                 }
                 packets = new_packets;
@@ -225,7 +225,7 @@ impl BoundedPacketBatchSender {
 }
 
 pub fn packet_batch_channel(
-    batches_batch_size: usize,
+    packets_batch_size: usize,
     max_queued_batches: usize,
 ) -> (BoundedPacketBatchSender, BoundedPacketBatchReceiver) {
     let (sig_sender, sig_receiver) = crossbeam_channel::unbounded::<()>();
@@ -233,7 +233,7 @@ pub fn packet_batch_channel(
         queue: VecDeque::new(),
         packet_count: 0,
         max_queued_batches,
-        batches_batch_size,
+        packets_batch_size,
     }));
     let sender = BoundedPacketBatchSender {
         sender: sig_sender.clone(),
@@ -258,9 +258,9 @@ mod test {
     #[test]
     fn bounded_streamer_test() {
         let num_packets = 10;
-        let batches_batch_size = 5;
+        let packets_batch_size = 50;
         let max_batches = 10;
-        let (sender, receiver) = packet_batch_channel(batches_batch_size, max_batches);
+        let (sender, receiver) = packet_batch_channel(packets_batch_size, max_batches);
         
         let mut packet_batch = PacketBatch::default();
         for _ in 0..num_packets {
@@ -298,8 +298,8 @@ mod test {
         // Receive batches up until the limit
         match receiver.recv() {
             Ok((batches, packets)) => {
-                assert_eq!(batches.len(), batches_batch_size);
-                assert_eq!(packets, num_packets*batches_batch_size);
+                assert_eq!(batches.len(), packets_batch_size);
+                assert_eq!(packets, num_packets*packets_batch_size);
             },
             Err(_err) => (),
         }
@@ -307,8 +307,8 @@ mod test {
         // Receive the rest of the batches
         match receiver.recv() {
             Ok((batches, packets)) => {
-                assert_eq!(batches.len(), batches_batch_size);
-                assert_eq!(packets, num_packets*batches_batch_size);
+                assert_eq!(batches.len(), packets_batch_size);
+                assert_eq!(packets, num_packets*packets_batch_size);
             },
             Err(_err) => (),
         }
