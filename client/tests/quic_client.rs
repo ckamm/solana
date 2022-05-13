@@ -7,7 +7,10 @@ mod tests {
             tpu_connection::{ClientStats, TpuConnection},
         },
         solana_sdk::{packet::PACKET_DATA_SIZE, quic::QUIC_PORT_OFFSET, signature::Keypair},
-        solana_streamer::quic::spawn_server,
+        solana_streamer::{
+            bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
+            quic::spawn_server,
+        },
         std::{
             collections::HashMap,
             net::{SocketAddr, UdpSocket},
@@ -24,7 +27,7 @@ mod tests {
         solana_logger::setup();
         let s = UdpSocket::bind("127.0.0.1:0").unwrap();
         let exit = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = unbounded();
+        let (sender, receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let keypair = Keypair::new();
         let ip = "127.0.0.1".parse().unwrap();
         let staked_nodes = Arc::new(RwLock::new(HashMap::new()));
@@ -61,7 +64,7 @@ mod tests {
         let now = Instant::now();
         let mut total_packets = 0;
         while now.elapsed().as_secs() < 5 {
-            if let Ok(packets) = receiver.recv_timeout(Duration::from_secs(1)) {
+            if let Ok(packets) = receiver.recv_timeout(usize::MAX, Duration::from_secs(1)) {
                 total_packets += packets.packets.len();
                 all_packets.push(packets)
             }
