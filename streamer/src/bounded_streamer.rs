@@ -128,7 +128,7 @@ impl BoundedPacketBatchReceiver {
         let mut batches = 0;
         let mut packets = 0;
         let mut packets_dropped = 0;
-        let first_batch_exceeds_threshold = false;
+        let mut first_batch_exceeds_threshold = false;
         let mut locked_data = self.data.write().unwrap();
         let disconnected = locked_data.sender_count == 0;
         
@@ -137,6 +137,7 @@ impl BoundedPacketBatchReceiver {
             if new_packets > max_packet_count {
                 if batches == 0 {
                     first_batch_exceeds_threshold = true;
+                    batches = 1;
                 }
                 break;
             }
@@ -154,16 +155,15 @@ impl BoundedPacketBatchReceiver {
             };
         }
 
-        let has_more = batches < locked_data.queue.len();
-        let recv_data = locked_data.queue.drain(0..batches).collect::<Vec<_>>();
+        let mut recv_data = locked_data.queue.drain(0..batches).collect::<Vec<_>>();
         if first_batch_exceeds_threshold {
             // First batch exceeds the max packet count.
             // Silently drop the tail packets of the batch to make progress.
             recv_data[0].packets.truncate(max_packet_count);
             packets = max_packet_count;
             packets_dropped = recv_data[0].packets.len() - max_packet_count;
-            batches = 1;
         }
+        let has_more = locked_data.queue.len() > 0;
         locked_data.sub_packet_count(packets+packets_dropped);
 
         drop(locked_data);
