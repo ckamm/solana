@@ -8,6 +8,7 @@ mod tests {
         solana_sdk::{packet::PACKET_DATA_SIZE, quic::QUIC_PORT_OFFSET, signature::Keypair},
         solana_streamer::{
             bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
+            streamer::PacketBatch,
             quic::spawn_server,
         },
         std::{
@@ -63,12 +64,13 @@ mod tests {
         let now = Instant::now();
         let mut total_packets = 0;
         while now.elapsed().as_secs() < 5 {
-            let (&mut batches, packets) = receiver.recv_timeout(usize::MAX, Duration::from_secs(1))?;
-            total_packets += packets;
-            all_batches.append(batches);
+            if let Ok((mut batches, packets)) = receiver.recv_timeout(usize::MAX, Duration::from_secs(1)) {
+                total_packets += packets;
+                all_batches.append(&mut batches);
 
-            if total_packets >= num_expected_packets {
-                break;
+                if total_packets >= num_expected_packets {
+                    break;
+                }
             }
         }
         for batch in all_batches {
