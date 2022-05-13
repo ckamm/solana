@@ -41,7 +41,6 @@ struct FindPacketSenderStakeStats {
     receive_batches_time: u64,
     total_batches: u64,
     total_packets: u64,
-    max_out_queue: usize,
 }
 
 impl FindPacketSenderStakeStats {
@@ -61,7 +60,6 @@ impl FindPacketSenderStakeStats {
                     self.apply_sender_stakes_time as i64,
                     i64
                 ),
-                ("max_out_queue", self.max_out_queue as i64, i64),
                 ("send_batches_time_us", self.send_batches_time as i64, i64),
                 (
                     "receive_batches_time_ns",
@@ -73,7 +71,6 @@ impl FindPacketSenderStakeStats {
             );
             *self = FindPacketSenderStakeStats::default();
             self.last_print = now;
-            self.max_out_queue = 0;
         }
     }
 }
@@ -123,8 +120,6 @@ impl FindPacketSenderStakeStage {
                             }
                             send_batches_time.stop();
 
-                            stats.max_out_queue =
-                                std::cmp::max(stats.max_out_queue, sender.batch_count());
                             stats.apply_sender_stakes_time = stats
                                 .apply_sender_stakes_time
                                 .saturating_add(apply_sender_stakes_time.as_us());
