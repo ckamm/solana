@@ -8,7 +8,6 @@ mod tests {
         solana_sdk::{packet::PACKET_DATA_SIZE, quic::QUIC_PORT_OFFSET, signature::Keypair},
         solana_streamer::{
             bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
-            streamer::PacketBatch,
             quic::spawn_server,
         },
         std::{
@@ -60,11 +59,13 @@ mod tests {
             .send_wire_transaction_batch_async(packets, stats)
             .is_ok());
 
-        let mut all_batches: Vec<PacketBatch> = vec![];
+        let mut all_batches = vec![];
         let now = Instant::now();
         let mut total_packets = 0;
         while now.elapsed().as_secs() < 5 {
-            if let Ok((mut batches, packets)) = receiver.recv_timeout(usize::MAX, Duration::from_secs(1)) {
+            if let Ok((mut batches, packets)) =
+                receiver.recv_timeout(usize::MAX, Duration::from_secs(1))
+            {
                 total_packets += packets;
                 all_batches.append(&mut batches);
 
