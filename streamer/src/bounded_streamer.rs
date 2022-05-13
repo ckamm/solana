@@ -281,11 +281,11 @@ mod test {
 
         // Case2: Fully load the queue with batches
         let packet_batches = vec![];
-        for _ in 0..max_batches {
+        for _ in 0..max_batches+1 {
             packet_batches.push(packet_batch.clone());
         }
         match sender.send_batches(packet_batches) {
-            Ok(dropped_packet) => assert_eq!(dropped_packet, false),
+            Ok(discarded) => assert_eq!(discarded, 1),
             Err(_err) => (),
         }
 
