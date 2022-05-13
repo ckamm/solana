@@ -105,7 +105,7 @@ impl BoundedPacketBatchReceiver {
             let mut packets = 0;
             for batch in locked_data.queue.iter() {
                 let new_packets = packets + batch.packets.len();
-                if new_packets > locked_data.batches_batch_size {
+                if batches && new_packets > locked_data.batches_batch_size {
                     break;
                 }
                 packets = new_packets;
