@@ -124,14 +124,13 @@ impl BoundedPacketBatchReceiver {
 
     // Returns (vec-of-batches, packet-count)
     fn try_recv(&self, max_packet_count: usize) -> Result<(Vec<PacketBatch>, usize), TryRecvError> {
-        
         let mut batches = 0;
         let mut packets = 0;
         let mut packets_dropped = 0;
         let mut first_batch_exceeds_threshold = false;
         let mut locked_data = self.data.write().unwrap();
         let disconnected = locked_data.sender_count == 0;
-        
+
         for batch in locked_data.queue.iter() {
             let new_packets = packets + batch.packets.len();
             if new_packets > max_packet_count {
@@ -164,7 +163,7 @@ impl BoundedPacketBatchReceiver {
             packets_dropped = recv_data[0].packets.len() - max_packet_count;
         }
         let has_more = locked_data.queue.len() > 0;
-        locked_data.sub_packet_count(packets+packets_dropped);
+        locked_data.sub_packet_count(packets + packets_dropped);
 
         drop(locked_data);
 
