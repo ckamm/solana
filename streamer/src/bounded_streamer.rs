@@ -87,7 +87,6 @@ impl BoundedPacketBatchReceiver {
                     if let Some(r) = self.try_recv() {
                         Ok(r)
                     } else {
-                        println!("Got nothing from try_recv");
                         continue;
                     }
                 }
@@ -259,10 +258,12 @@ mod test {
     #[test]
     fn bounded_streamer_test() {
         let num_packets = 10;
-        let (sender, receiver) = packet_batch_channel(5, 10);
+        let batches_batch_size = 5;
+        let max_batches = 10;
+        let (sender, receiver) = packet_batch_channel(batches_batch_size, max_batches);
         
         let mut packet_batch = PacketBatch::default();
-        for _i in 0..num_packets {
+        for _ in 0..num_packets {
             let p = Packet::default();
             packet_batch.packets.push(p);
         }
@@ -274,6 +275,28 @@ mod test {
 
         match receiver.recv() {
             Ok((_batches, packets)) => assert_eq!(packets, num_packets),
+            Err(_err) => (),
+        }
+
+        for _ in 0..max_batches {
+            match sender.send_batch(packet_batch.clone()) {
+                Ok(dropped_packet) => assert_eq!(dropped_packet, false),
+                Err(_err) => (),
+            }
+        }
+
+        match sender.send_batch(packet_batch.clone()) {
+            Ok(dropped_packet) => assert_eq!(dropped_packet, true),
+            Err(_err) => (),
+        }
+
+        match receiver.recv() {
+            Ok((_batches, packets)) => assert_eq!(packets, num_packets*batches_batch_size),
+            Err(_err) => (),
+        }
+
+        match receiver.recv() {
+            Ok((_batches, packets)) => assert_eq!(packets, num_packets*batches_batch_size),
             Err(_err) => (),
         }
     }
