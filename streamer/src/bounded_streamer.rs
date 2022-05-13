@@ -153,9 +153,9 @@ impl BoundedPacketBatchReceiver {
             };
         }
 
+        let has_more = batches < locked_data.queue.len();
         let recv_data = locked_data.queue.drain(0..batches).collect::<Vec<_>>();
         locked_data.sub_packet_count(packets);
-        let has_more = batches < locked_data.queue.len();
 
         drop(locked_data);
 
@@ -306,7 +306,7 @@ pub fn packet_batch_channel(
 #[cfg(test)]
 mod test {
     use {
-        crate::bounded_streamer::packet_batch_channel,
+        super::*,
         solana_perf::packet::{Packet, PacketBatch},
     };
 
@@ -367,5 +367,62 @@ mod test {
             }
             Err(_err) => (),
         }
+    }
+
+    #[test]
+    fn bounded_streamer_disconnect() {
+        let num_packets = 10;
+        let max_batches = 10;
+        let timeout = Duration::from_millis(1);
+        let (sender1, receiver) = packet_batch_channel(max_batches);
+
+        let mut packet_batch = PacketBatch::default();
+        for _ in 0..num_packets {
+            let p = Packet::default();
+            packet_batch.packets.push(p);
+        }
+
+        // CHECK: Receiving when no more data is present causes a timeout
+
+        sender1.send_batch(packet_batch.clone()).unwrap();
+
+        match receiver.recv(12) {
+            Ok((batches, packets)) => {
+                assert_eq!(batches.len(), 1);
+                assert_eq!(packets, 10);
+            }
+            Err(_err) => (),
+        }
+
+        assert_eq!(receiver.recv_timeout(12, timeout).unwrap_err(), RecvTimeoutError::Timeout);
+
+        // CHECK: Receiving when all senders are dropped causes Disconnected
+
+        sender1.send_batch(packet_batch.clone()).unwrap();
+
+        {
+            let sender2 = sender1.clone();
+            sender2.send_batch(packet_batch.clone()).unwrap();
+        }
+
+        drop(sender1);
+
+        match receiver.recv(12) {
+            Ok((batches, packets)) => {
+                assert_eq!(batches.len(), 1);
+                assert_eq!(packets, 10);
+            }
+            Err(_err) => (),
+        }
+
+        match receiver.recv(12) {
+            Ok((batches, packets)) => {
+                assert_eq!(batches.len(), 1);
+                assert_eq!(packets, 10);
+            }
+            Err(_err) => (),
+        }
+
+        assert_eq!(receiver.recv_timeout(12, timeout).unwrap_err(), RecvTimeoutError::Disconnected);
     }
 }
