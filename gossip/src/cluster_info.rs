@@ -136,6 +136,10 @@ pub(crate) const CRDS_UNIQUE_PUBKEY_CAPACITY: usize = 8192;
 const MIN_STAKE_FOR_GOSSIP: u64 = solana_sdk::native_token::LAMPORTS_PER_SOL;
 /// Minimum number of staked nodes for enforcing stakes in gossip.
 const MIN_NUM_STAKED_NODES: usize = 500;
+/// Maximum amount of time to wait for batches in the receive loop.
+const RECV_TIMEOUT: Duration = Duration::from_secs(1);
+/// Maximum packets to receive per loop for QoS reasons.
+const RECV_MAX_PACKETS: usize = 100_000;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClusterInfoError {
@@ -2447,8 +2451,6 @@ impl ClusterInfo {
         sender: &Sender<Vec<(/*from:*/ SocketAddr, Protocol)>>,
         thread_pool: &ThreadPool,
     ) -> Result<(), GossipError> {
-        const RECV_TIMEOUT: Duration = Duration::from_secs(1);
-        const RECV_MAX_PACKETS: usize = 100_000;
         let (batches, _) = receiver.recv_timeout(RECV_MAX_PACKETS, RECV_TIMEOUT)?;
         let packets = batches
             .into_iter()

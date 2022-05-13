@@ -31,7 +31,8 @@ use {
     },
 };
 
-const RECV_MAX_PACKETS: usize = 100_000;
+// Maximum packets to receive per loop for QoS reasons
+const RECV_MAX_PACKETS: usize = 1_024;
 
 pub struct FetchStage {
     thread_hdls: Vec<JoinHandle<()>>,

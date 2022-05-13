@@ -19,6 +19,7 @@ use {
 };
 
 const IP_TO_STAKE_REFRESH_DURATION: Duration = Duration::from_secs(5);
+/// Maximum packets to receive per loop for QoS reasons.
 const RECV_MAX_PACKETS: usize = 100_000;
 
 lazy_static! {

@@ -24,7 +24,9 @@ use {
     thiserror::Error,
 };
 
+/// Maximum packets to receive per loop for QoS reasons.
 const RECV_MAX_PACKETS: usize = 100_000;
+/// Maximum unique packets to verify.
 const MAX_SIGVERIFY_BATCH: usize = 10_000;
 
 #[derive(Error, Debug)]

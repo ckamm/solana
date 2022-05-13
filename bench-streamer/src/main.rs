@@ -57,11 +57,7 @@ fn sink(
         let timer = Duration::new(1, 0);
         let max_recv_packets = 1024;
         if let Ok(recv_response) = r.recv_timeout(max_recv_packets, timer) {
-            let (packet_batch, _) = recv_response;
-            let mut packets = 0;
-            for batch in packet_batch.iter() {
-                packets += batch.packets.len();
-            }
+            let (_, packets) = recv_response;
             rvs.fetch_add(packets, Ordering::Relaxed);
         }
     })

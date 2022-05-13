@@ -38,6 +38,7 @@ use {
     },
 };
 
+/// Maximum packets to receive per loop for QoS reasons.
 const RECV_MAX_PACKETS: usize = 100_000;
 
 type DuplicateSlotSender = Sender<Slot>;
