@@ -87,6 +87,7 @@ impl BoundedPacketBatchReceiver {
                     if let Some(r) = self.try_recv() {
                         Ok(r)
                     } else {
+                        println!("Got nothing from try_recv");
                         continue;
                     }
                 }
@@ -272,11 +273,11 @@ mod test {
             Ok(_x) => {
                 println!("Send success!");
             }
-            Err(err) => {
+            Err(_err) => {
                 println!("Send Fail!");
             }
         }
-        println!("Sent batch");
+
         match receiver.recv() {
             Ok((_batches, packets)) => {
                 assert_eq!(packets, num_packets);
