@@ -269,12 +269,12 @@ mod test {
 
         match sender.send_batch(packet_batch) {
             Ok(dropped_packet) => assert_eq!(dropped_packet, false),
-            Err(_err) => _,
+            Err(_err) => (),
         }
 
         match receiver.recv() {
             Ok((_batches, packets)) => assert_eq!(packets, num_packets),
-            Err(_err) => _,
+            Err(_err) => (),
         }
     }
 }
