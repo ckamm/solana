@@ -601,10 +601,9 @@ pub fn spawn_server(
 
 #[cfg(test)]
 mod test {
-    use crate::bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver};
-
     use {
         super::*,
+        crate::bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
         quinn::{ClientConfig, NewConnection},
         solana_sdk::quic::QUIC_KEEP_ALIVE_MS,
         std::{net::SocketAddr, time::Instant},

@@ -408,9 +408,9 @@ mod test {
     use {
         super::*,
         crate::{
+            bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
             packet::{Packet, PacketBatch, PACKET_DATA_SIZE},
             streamer::{receiver, responder},
-            bounded_streamer::{BoundedPacketBatchReceiver, packet_batch_channel},
         },
         crossbeam_channel::unbounded,
         solana_perf::recycler::Recycler,

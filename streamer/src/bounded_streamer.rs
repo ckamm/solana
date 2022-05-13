@@ -249,9 +249,7 @@ pub fn packet_batch_channel(
 #[cfg(test)]
 mod test {
     use {
-        crate::{
-            bounded_streamer::{packet_batch_channel},
-        },
+        crate::bounded_streamer::packet_batch_channel,
         solana_perf::packet::{Packet, PacketBatch},
     };
 
@@ -261,7 +259,7 @@ mod test {
         let packets_batch_size = 50;
         let max_batches = 10;
         let (sender, receiver) = packet_batch_channel(packets_batch_size, max_batches);
-        
+
         let mut packet_batch = PacketBatch::default();
         for _ in 0..num_packets {
             let p = Packet::default();
@@ -281,7 +279,7 @@ mod test {
 
         // Case2: Fully load the queue with batches
         let mut packet_batches = vec![];
-        for _ in 0..max_batches+1 {
+        for _ in 0..max_batches + 1 {
             packet_batches.push(packet_batch.clone());
         }
         match sender.send_batches(packet_batches) {
@@ -298,18 +296,18 @@ mod test {
         // Receive batches up until the limit
         match receiver.recv() {
             Ok((batches, packets)) => {
-                assert_eq!(batches.len(), packets_batch_size/num_packets);
+                assert_eq!(batches.len(), packets_batch_size / num_packets);
                 assert_eq!(packets, packets_batch_size);
-            },
+            }
             Err(_err) => (),
         }
 
         // Receive the rest of the batches
         match receiver.recv() {
             Ok((batches, packets)) => {
-                assert_eq!(batches.len(), packets_batch_size/num_packets);
+                assert_eq!(batches.len(), packets_batch_size / num_packets);
                 assert_eq!(packets, packets_batch_size);
-            },
+            }
             Err(_err) => (),
         }
     }
