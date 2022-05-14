@@ -819,7 +819,7 @@ mod tests {
             pubkey::Pubkey,
             signature::{Keypair, Signature, Signer},
         },
-        solana_streamer::bounded_streamer::packet_batch_channel,
+        solana_streamer::bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
         solana_vote_program::{vote_state::Vote, vote_transaction},
         std::{
             collections::BTreeSet,
@@ -1608,7 +1608,8 @@ mod tests {
         let current_leader_bank = Arc::new(Bank::new_for_tests(&genesis_config));
         let mut bank_vote_sender_state_option: Option<BankVoteSenderState> = None;
         let verified_vote_packets = VerifiedVotePackets::default();
-        let (verified_packets_sender, _verified_packets_receiver) = packet_batch_channel(10_000);
+        let (verified_packets_sender, _verified_packets_receiver) =
+            packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
 
         // 1) If we hand over a `current_leader_bank`, vote sender state should be updated
         ClusterInfoVoteListener::check_for_leader_bank_and_send_votes(

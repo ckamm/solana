@@ -24,7 +24,9 @@ use {
         timing::timestamp,
     },
     solana_streamer::{
-        bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
+        bounded_streamer::{
+            packet_batch_channel, BoundedPacketBatchReceiver, DEFAULT_MAX_QUEUED_BATCHES,
+        },
         streamer::{self, StreamerReceiveStats},
     },
     std::{
@@ -149,7 +151,7 @@ impl AncestorHashesService {
     ) -> Self {
         let outstanding_requests: Arc<RwLock<OutstandingAncestorHashesRepairs>> =
             Arc::new(RwLock::new(OutstandingAncestorHashesRepairs::default()));
-        let (response_sender, response_receiver) = packet_batch_channel(10_000);
+        let (response_sender, response_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let t_receiver = streamer::receiver(
             ancestor_hashes_request_socket.clone(),
             exit.clone(),
@@ -253,21 +255,9 @@ impl AncestorHashesService {
         retryable_slots_sender: &RetryableSlotsSender,
     ) -> Result<()> {
         let timeout = Duration::new(1, 0);
-        let (mut packet_batches, _) = response_receiver.recv_timeout(usize::MAX, timeout)?;
+        let (packet_batches, total_packets) =
+            response_receiver.recv_timeout(packet_threshold.threshold(), timeout)?;
 
-        let mut dropped_packets = 0;
-        let mut total_packets = 0;
-        packet_batches.retain(|batch| {
-            total_packets += batch.packets.len();
-            if packet_threshold.should_drop(total_packets) {
-                dropped_packets += batch.packets.len();
-                false
-            } else {
-                true
-            }
-        });
-
-        stats.dropped_packets += dropped_packets;
         stats.total_packets += total_packets;
 
         let timer = Instant::now();
@@ -893,7 +883,8 @@ mod test {
             // Set up thread to give us responses
             let ledger_path = get_tmp_ledger_path!();
             let exit = Arc::new(AtomicBool::new(false));
-            let (requests_sender, requests_receiver) = packet_batch_channel(10_000);
+            let (requests_sender, requests_receiver) =
+                packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
             let (response_sender, response_receiver) = unbounded();
 
             // Set up blockstore for responses

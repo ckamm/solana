@@ -27,7 +27,10 @@ use {
         timing::{duration_as_us, timestamp},
         transaction::Transaction,
     },
-    solana_streamer::{bounded_streamer::packet_batch_channel, socket::SocketAddrSpace},
+    solana_streamer::{
+        bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
+        socket::SocketAddrSpace,
+    },
     std::{
         sync::{atomic::Ordering, Arc, Mutex, RwLock},
         thread::sleep,
@@ -237,9 +240,9 @@ fn main() {
         ..
     } = create_genesis_config(mint_total);
 
-    let (verified_sender, verified_receiver) = packet_batch_channel(10_000);
-    let (vote_sender, vote_receiver) = packet_batch_channel(10_000);
-    let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(10_000);
+    let (verified_sender, verified_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
+    let (vote_sender, vote_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
+    let (tpu_vote_sender, tpu_vote_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
     let (replay_vote_sender, _replay_vote_receiver) = unbounded();
     let bank0 = Bank::new_for_benches(&genesis_config);
     let mut bank_forks = BankForks::new(bank0);

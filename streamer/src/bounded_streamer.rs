@@ -12,16 +12,23 @@ use {
     },
 };
 
+/// 10k batches means up to 1.3M packets, roughly 1.6GB of memory
+pub const DEFAULT_MAX_QUEUED_BATCHES: usize = 10_000;
+
 struct PacketBatchChannelData {
     queue: VecDeque<PacketBatch>,
+    /// Number of packets currently queued
     packet_count: usize,
+    /// Constrain the number of queued batches to avoid exploding memory
     max_queued_batches: usize,
+    /// How many senders are sending to this channel
     sender_count: usize,
 }
 
 #[derive(Clone)]
 pub struct BoundedPacketBatchReceiver {
     signal_receiver: Receiver<()>,
+    /// Instance of sender for waking up receivers (e.g. because there are more batches to receive)
     signal_sender: Sender<()>,
     data: Arc<RwLock<PacketBatchChannelData>>,
 }
@@ -77,7 +84,7 @@ impl BoundedPacketBatchReceiver {
     /// Receives up to `max_packet_count` packets from the channel.
     ///
     /// If no data is available, the function will wait up to `timeout`, then
-    /// return RectTimeoutError::Timeout if no data came in.
+    /// return RecvTimeoutError::Timeout if no data came in.
     ///
     /// If all senders have been dropped and there's no data avilable, it returns
     /// RecvTimeoutError::Disconnected.
@@ -103,7 +110,7 @@ impl BoundedPacketBatchReceiver {
     ///
     /// Waits until there's data or the channel has been disconnected.
     ///
-    /// Returns (list of batches, packet count)
+    /// Returns (vec-of-batches, packet count)
     pub fn recv(&self, max_packet_count: usize) -> Result<(Vec<PacketBatch>, usize), RecvError> {
         loop {
             self.signal_receiver.recv()?;
@@ -117,18 +124,20 @@ impl BoundedPacketBatchReceiver {
 
     // Returns (vec-of-batches, packet-count)
     fn try_recv(&self, max_packet_count: usize) -> Result<(Vec<PacketBatch>, usize), TryRecvError> {
-        let mut locked_data = self.data.write().unwrap();
-
-        let disconnected = locked_data.sender_count == 0;
-
         let mut batches = 0;
         let mut packets = 0;
+        let mut packets_dropped = 0;
+        let mut first_batch_exceeds_threshold = false;
+        let mut locked_data = self.data.write().unwrap();
+        let disconnected = locked_data.sender_count == 0;
+
         for batch in locked_data.queue.iter() {
             let new_packets = packets + batch.packets.len();
-            // Do we rather allow receiving 0 batches if the first batch
-            // exceeds max_packet_count, or do we allow exceeding
-            // max_packet_count?
-            if batches > 0 && new_packets > max_packet_count {
+            if new_packets > max_packet_count {
+                if batches == 0 {
+                    first_batch_exceeds_threshold = true;
+                    batches = 1;
+                }
                 break;
             }
             packets = new_packets;
@@ -145,13 +154,20 @@ impl BoundedPacketBatchReceiver {
             };
         }
 
-        let has_more = batches < locked_data.queue.len();
-        let recv_data = locked_data.queue.drain(0..batches).collect::<Vec<_>>();
-        locked_data.sub_packet_count(packets);
+        let mut recv_data = locked_data.queue.drain(0..batches).collect::<Vec<_>>();
+        if first_batch_exceeds_threshold {
+            // First batch exceeds the max packet count.
+            // Silently drop the tail packets of the batch to make progress.
+            recv_data[0].packets.truncate(max_packet_count);
+            packets = max_packet_count;
+            packets_dropped = recv_data[0].packets.len() - max_packet_count;
+        }
+        let has_more = locked_data.queue.len() > 0;
+        locked_data.sub_packet_count(packets + packets_dropped);
 
         drop(locked_data);
 
-        // If there's more data in the queue then notify another receiver.
+        // If there's more data in the queue, then notify another receiver.
         // Also, if we're disconnected but still return data, wake up again to
         // signal the disconnected error without delay.
         if has_more || disconnected {
@@ -169,7 +185,7 @@ impl BoundedPacketBatchReceiver {
         self.recv_timeout(max_packet_count, Duration::new(1, 0))
     }
 
-    /// Like `recv_timeout()` with a 1s timeout that also measures its own runtime.
+    /// Like `recv_default_timeout()` that also measures its own runtime.
     pub fn recv_duration_default_timeout(
         &self,
         max_packet_count: usize,

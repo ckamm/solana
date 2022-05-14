@@ -603,7 +603,9 @@ pub fn spawn_server(
 mod test {
     use {
         super::*,
-        crate::bounded_streamer::{packet_batch_channel, BoundedPacketBatchReceiver},
+        crate::bounded_streamer::{
+            packet_batch_channel, BoundedPacketBatchReceiver, DEFAULT_MAX_QUEUED_BATCHES,
+        },
         quinn::{ClientConfig, NewConnection},
         solana_sdk::quic::QUIC_KEEP_ALIVE_MS,
         std::{net::SocketAddr, time::Instant},
@@ -735,7 +737,7 @@ mod test {
         solana_logger::setup();
         let s = UdpSocket::bind("127.0.0.1:0").unwrap();
         let exit = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = packet_batch_channel(10_000);
+        let (sender, receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let keypair = Keypair::new();
         let ip = "127.0.0.1".parse().unwrap();
         let server_address = s.local_addr().unwrap();
@@ -810,7 +812,7 @@ mod test {
     ) {
         let s = UdpSocket::bind("127.0.0.1:0").unwrap();
         let exit = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = packet_batch_channel(10_000);
+        let (sender, receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let keypair = Keypair::new();
         let ip = "127.0.0.1".parse().unwrap();
         let server_address = s.local_addr().unwrap();

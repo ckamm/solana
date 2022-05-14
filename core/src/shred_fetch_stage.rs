@@ -14,6 +14,7 @@ use {
     solana_streamer::{
         bounded_streamer::{
             packet_batch_channel, BoundedPacketBatchReceiver, BoundedPacketBatchSender,
+            DEFAULT_MAX_QUEUED_BATCHES,
         },
         streamer::{self, StreamerReceiveStats},
     },
@@ -136,7 +137,7 @@ impl ShredFetchStage {
     where
         F: Fn(&mut Packet) + Send + 'static,
     {
-        let (packet_sender, packet_receiver) = packet_batch_channel(10_000);
+        let (packet_sender, packet_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let streamers = sockets
             .into_iter()
             .map(|s| {

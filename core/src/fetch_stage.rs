@@ -16,6 +16,7 @@ use {
     solana_streamer::{
         bounded_streamer::{
             packet_batch_channel, BoundedPacketBatchReceiver, BoundedPacketBatchSender,
+            DEFAULT_MAX_QUEUED_BATCHES,
         },
         streamer::{self, StreamerReceiveStats},
     },
@@ -30,7 +31,8 @@ use {
     },
 };
 
-const RECV_MAX_PACKETS: usize = 100_000;
+// Maximum packets to receive per loop for QoS reasons
+const RECV_MAX_PACKETS: usize = 1_024;
 
 pub struct FetchStage {
     thread_hdls: Vec<JoinHandle<()>>,
@@ -46,8 +48,8 @@ impl FetchStage {
         poh_recorder: &Arc<Mutex<PohRecorder>>,
         coalesce_ms: u64,
     ) -> (Self, BoundedPacketBatchReceiver, BoundedPacketBatchReceiver) {
-        let (sender, receiver) = packet_batch_channel(10_000);
-        let (vote_sender, vote_receiver) = packet_batch_channel(10_000);
+        let (sender, receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
+        let (vote_sender, vote_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         (
             Self::new_with_sender(
                 sockets,
@@ -146,7 +148,7 @@ impl FetchStage {
             .collect();
 
         let tpu_forward_stats = Arc::new(StreamerReceiveStats::new("tpu_forwards_receiver"));
-        let (forward_sender, forward_receiver) = packet_batch_channel(10_000);
+        let (forward_sender, forward_receiver) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let tpu_forwards_threads: Vec<_> = tpu_forwards_sockets
             .into_iter()
             .map(|socket| {

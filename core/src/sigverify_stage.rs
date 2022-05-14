@@ -24,7 +24,9 @@ use {
     thiserror::Error,
 };
 
+/// Maximum packets to receive per loop for QoS reasons.
 const RECV_MAX_PACKETS: usize = 100_000;
+/// Maximum unique packets to verify.
 const MAX_SIGVERIFY_BATCH: usize = 10_000;
 
 #[derive(Error, Debug)]
@@ -393,7 +395,7 @@ mod tests {
             packet::{to_packet_batches, Packet},
             test_tx::test_tx,
         },
-        solana_streamer::bounded_streamer::packet_batch_channel,
+        solana_streamer::bounded_streamer::{packet_batch_channel, DEFAULT_MAX_QUEUED_BATCHES},
     };
 
     fn count_non_discard(packet_batches: &[PacketBatch]) -> usize {
@@ -441,8 +443,8 @@ mod tests {
     fn test_sigverify_stage() {
         solana_logger::setup();
         trace!("start");
-        let (packet_s, packet_r) = packet_batch_channel(10_000);
-        let (verified_s, verified_r) = packet_batch_channel(10_000);
+        let (packet_s, packet_r) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
+        let (verified_s, verified_r) = packet_batch_channel(DEFAULT_MAX_QUEUED_BATCHES);
         let verifier = TransactionSigVerifier::default();
         let stage = SigVerifyStage::new(packet_r, verified_s, verifier, "test");
 
@@ -466,7 +468,7 @@ mod tests {
         trace!("sent: {}", sent_len);
         loop {
             if let Ok((mut verifieds, _)) =
-                verified_r.recv_timeout(10_000, Duration::from_millis(10))
+                verified_r.recv_timeout(sent_len, Duration::from_millis(10))
             {
                 while let Some(v) = verifieds.pop() {
                     received += v.packets.len();

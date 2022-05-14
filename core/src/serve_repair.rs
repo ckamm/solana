@@ -326,21 +326,9 @@ impl ServeRepair {
     ) -> Result<()> {
         //TODO cache connections
         let timeout = Duration::new(1, 0);
-        let (mut packet_batches, _) = requests_receiver.recv_timeout(usize::MAX, timeout)?;
+        let (packet_batches, total_packets) =
+            requests_receiver.recv_timeout(packet_threshold.threshold(), timeout)?;
 
-        let mut dropped_packets = 0;
-        let mut total_packets = 0;
-        packet_batches.retain(|batch| {
-            total_packets += batch.packets.len();
-            if packet_threshold.should_drop(total_packets) {
-                dropped_packets += batch.packets.len();
-                false
-            } else {
-                true
-            }
-        });
-
-        stats.dropped_packets += dropped_packets;
         stats.total_packets += total_packets;
 
         let timer = Instant::now();

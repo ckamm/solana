@@ -217,7 +217,7 @@ fn run_dos(
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
 
     let mut data = Vec::new();
-    let mut _transaction_generator = None;
+    let mut transaction_generator = None;
 
     match params.data_type {
         DataType::RepairHighest => {
@@ -248,7 +248,7 @@ fn run_dos(
             info!("{:?}", tx);
             data = bincode::serialize(&tx).unwrap();
             if params.transaction_params.unique_transactions {
-                _transaction_generator = Some(tg);
+                transaction_generator = Some(tg);
             }
         }
         DataType::GetAccountInfo => {}
@@ -284,12 +284,12 @@ fn run_dos(
         } else {
             if params.data_type == DataType::Random {
                 thread_rng().fill(&mut data[..]);
-            } /*
-              if let Some(tg) = transaction_generator.as_mut() {
-                  let tx = tg.generate(payer, &rpc_client);
-                  debug!("{:?}", tx);
-                  data = bincode::serialize(&tx).unwrap();
-              }*/
+            }
+            if let Some(tg) = transaction_generator.as_mut() {
+                let tx = tg.generate(payer, &rpc_client);
+                debug!("{:?}", tx);
+                data = bincode::serialize(&tx).unwrap();
+            }
             let res = socket.send_to(&data, target);
             if res.is_err() {
                 error_count += 1;
