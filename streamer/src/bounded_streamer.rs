@@ -4,10 +4,11 @@
 use {
     crate::packet::PacketBatch,
     crossbeam_channel::{Receiver, RecvError, RecvTimeoutError, SendError, Sender, TrySendError},
+    crossbeam_queue::ArrayQueue,
     std::{
         collections::VecDeque,
         result::Result,
-        sync::{Arc, RwLock},
+        sync::{Arc, RwLock, atomic::{Ordering, AtomicUsize}},
         time::{Duration, Instant},
     },
 };
@@ -16,13 +17,11 @@ use {
 pub const DEFAULT_MAX_QUEUED_BATCHES: usize = 10_000;
 
 struct PacketBatchChannelData {
-    queue: VecDeque<PacketBatch>,
+    queue: ArrayQueue<PacketBatch>,
     /// Number of packets currently queued
-    packet_count: usize,
-    /// Constrain the number of queued batches to avoid exploding memory
-    max_queued_batches: usize,
+    packet_count: AtomicUsize,
     /// How many senders are sending to this channel
-    sender_count: usize,
+    sender_count: AtomicUsize,
 }
 
 #[derive(Clone)]
@@ -30,19 +29,18 @@ pub struct BoundedPacketBatchReceiver {
     signal_receiver: Receiver<()>,
     /// Instance of sender for waking up receivers (e.g. because there are more batches to receive)
     signal_sender: Sender<()>,
-    data: Arc<RwLock<PacketBatchChannelData>>,
+    data: Arc<PacketBatchChannelData>,
 }
 
 pub struct BoundedPacketBatchSender {
     signal_sender: Sender<()>,
-    data: Arc<RwLock<PacketBatchChannelData>>,
+    data: Arc<PacketBatchChannelData>,
 }
 
 impl Clone for BoundedPacketBatchSender {
     fn clone(&self) -> Self {
         {
-            let mut locked_data = self.data.write().unwrap();
-            locked_data.sender_count += 1;
+            self.data.sender_count.fetch_add(1, Ordering::SeqCst);
         }
         Self {
             signal_sender: self.signal_sender.clone(),
@@ -54,9 +52,7 @@ impl Clone for BoundedPacketBatchSender {
 impl Drop for BoundedPacketBatchSender {
     fn drop(&mut self) {
         let dropping_last_sender = {
-            let mut locked_data = self.data.write().unwrap();
-            locked_data.sender_count -= 1;
-            locked_data.sender_count == 0
+            self.data.sender_count.fetch_sub(1, Ordering::SeqCst) == 1
         };
         if dropping_last_sender {
             // notify receivers, otherwise they may be waiting forever on a
@@ -67,11 +63,11 @@ impl Drop for BoundedPacketBatchSender {
 }
 
 impl PacketBatchChannelData {
-    fn add_packet_count(&mut self, amount: usize) {
-        self.packet_count = self.packet_count.saturating_add(amount);
+    fn add_packet_count(&self, amount: usize) {
+        self.packet_count.fetch_add(amount, Ordering::Relaxed);
     }
-    fn sub_packet_count(&mut self, amount: usize) {
-        self.packet_count = self.packet_count.saturating_sub(amount);
+    fn sub_packet_count(&self, amount: usize) {
+        self.packet_count.fetch_sub(amount, Ordering::Relaxed);
     }
 }
 
@@ -124,27 +120,20 @@ impl BoundedPacketBatchReceiver {
 
     // Returns (vec-of-batches, packet-count)
     fn try_recv(&self, max_packet_count: usize) -> Result<(Vec<PacketBatch>, usize), TryRecvError> {
-        let mut batches = 0;
         let mut packets = 0;
         let mut packets_dropped = 0;
         let mut first_batch_exceeds_threshold = false;
-        let mut locked_data = self.data.write().unwrap();
-        let disconnected = locked_data.sender_count == 0;
+        let disconnected = self.data.sender_count.load(Ordering::SeqCst) == 0;
 
-        for batch in locked_data.queue.iter() {
-            let new_packets = packets + batch.packets.len();
-            if new_packets > max_packet_count {
-                if batches == 0 {
-                    first_batch_exceeds_threshold = true;
-                    batches = 1;
-                }
+        let mut batches = Vec::with_capacity(std::cmp::min(max_packet_count / 128, self.data.queue.len()));
+        while let Some(batch) = self.data.queue.pop() {
+            packets += batch.packets.len();
+            batches.push(batch);
+            if packets >= max_packet_count {
                 break;
             }
-            packets = new_packets;
-            batches += 1;
         }
-        if batches == 0 {
-            drop(locked_data);
+        if batches.len() == 0 {
             return if disconnected {
                 // Wake up ourselves or other receivers again
                 self.signal_sender.try_send(()).unwrap_or(());
@@ -154,18 +143,8 @@ impl BoundedPacketBatchReceiver {
             };
         }
 
-        let mut recv_data = locked_data.queue.drain(0..batches).collect::<Vec<_>>();
-        if first_batch_exceeds_threshold {
-            // First batch exceeds the max packet count.
-            // Silently drop the tail packets of the batch to make progress.
-            recv_data[0].packets.truncate(max_packet_count);
-            packets = max_packet_count;
-            packets_dropped = recv_data[0].packets.len() - max_packet_count;
-        }
-        let has_more = locked_data.queue.len() > 0;
-        locked_data.sub_packet_count(packets + packets_dropped);
-
-        drop(locked_data);
+        let has_more = self.data.queue.len() > 0;
+        self.data.sub_packet_count(packets + packets_dropped);
 
         // If there's more data in the queue, then notify another receiver.
         // Also, if we're disconnected but still return data, wake up again to
@@ -174,7 +153,7 @@ impl BoundedPacketBatchReceiver {
             self.signal_sender.try_send(()).unwrap_or(());
         }
 
-        Ok((recv_data, packets))
+        Ok((batches, packets))
     }
 
     /// Like `recv_timeout()` with a 1s timeout
@@ -199,12 +178,12 @@ impl BoundedPacketBatchReceiver {
 
     /// Number of batches in the queue
     pub fn batch_count(&self) -> usize {
-        self.data.read().unwrap().queue.len()
+        self.data.queue.len()
     }
 
     /// Number of packets in the queue
     pub fn packet_count(&self) -> usize {
-        self.data.read().unwrap().packet_count
+        self.data.packet_count.load(Ordering::Relaxed)
     }
 }
 
@@ -219,22 +198,16 @@ impl BoundedPacketBatchSender {
         if batch.packets.len() == 0 {
             return Ok(false);
         }
-        let batch_discarded = {
-            let mut locked_data = self.data.write().unwrap();
-            let discarded = if locked_data.queue.len() >= locked_data.max_queued_batches {
-                if let Some(old_batch) = locked_data.queue.pop_front() {
-                    locked_data.sub_packet_count(old_batch.packets.len());
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
-            locked_data.add_packet_count(batch.packets.len());
-            locked_data.queue.push_back(batch);
-            discarded
-        };
+        let mut batch_discarded = false;
+        self.data.add_packet_count(batch.packets.len());
+        let mut loop_batch = batch;
+        while let Err(uninserted_batch) = self.data.queue.push(loop_batch) {
+            loop_batch = uninserted_batch;
+            if let Some(b) = self.data.queue.pop() {
+                self.data.sub_packet_count(b.packets.len());
+                batch_discarded = true;
+            }
+        }
 
         // wake a receiver
         match self.signal_sender.try_send(()) {
@@ -256,50 +229,48 @@ impl BoundedPacketBatchSender {
         if batches.len() == 0 {
             return Ok(0);
         }
-        // note: this allows adding batches without packets
-        let batches_discarded = {
-            let mut locked_data = self.data.write().unwrap();
-            let max_queued_batches = locked_data.max_queued_batches;
-            let batches_to_queue = std::cmp::min(batches.len(), max_queued_batches);
-            let discard_new_batches = batches.len() - batches_to_queue;
 
-            let discard_old_batches =
-                (locked_data.queue.len() + batches_to_queue).saturating_sub(max_queued_batches);
-            let discard_old_packets = locked_data
-                .queue
-                .drain(0..discard_old_batches)
-                .map(|b| b.packets.len())
-                .sum();
-            locked_data.sub_packet_count(discard_old_packets);
+        let mut discarded_batches = 0;
 
-            let new_packets = batches
-                .iter()
-                .take(max_queued_batches)
-                .map(|b| b.packets.len())
-                .sum();
-            locked_data.add_packet_count(new_packets);
-            locked_data
-                .queue
-                .extend(batches.into_iter().take(max_queued_batches));
+        // discard early, to avoid lots of push fails in the common case
+        let new_estimated_len = self.data.queue.len() + batches.len();
+        if new_estimated_len > self.data.queue.capacity() {
+            for _ in 0..(new_estimated_len - self.data.queue.capacity()) {
+                if let Some(b) = self.data.queue.pop() {
+                    self.data.sub_packet_count(b.packets.len());
+                    discarded_batches += 1;
+                }
+            }
+        }
 
-            discard_old_batches + discard_new_batches
-        };
+        // insert all
+        for batch in batches {
+            self.data.add_packet_count(batch.packets.len());
+            let mut loop_batch = batch;
+            while let Err(uninserted_batch) = self.data.queue.push(loop_batch) {
+                loop_batch = uninserted_batch;
+                if let Some(b) = self.data.queue.pop() {
+                    self.data.sub_packet_count(b.packets.len());
+                    discarded_batches += 1;
+                }
+            }
+        }
 
         // wake a receiver
         match self.signal_sender.try_send(()) {
             Err(TrySendError::Disconnected(v)) => Err(SendError(v)),
-            _ => Ok(batches_discarded),
+            _ => Ok(discarded_batches),
         }
     }
 
     /// Number of batches in the queue
     pub fn batch_count(&self) -> usize {
-        self.data.read().unwrap().queue.len()
+        self.data.queue.len()
     }
 
     /// Number of packets in the queue
     pub fn packet_count(&self) -> usize {
-        self.data.read().unwrap().packet_count
+        self.data.packet_count.load(Ordering::Relaxed)
     }
 }
 
@@ -316,12 +287,11 @@ pub fn packet_batch_channel(
     max_queued_batches: usize,
 ) -> (BoundedPacketBatchSender, BoundedPacketBatchReceiver) {
     let (signal_sender, signal_receiver) = crossbeam_channel::bounded::<()>(1);
-    let data = Arc::new(RwLock::new(PacketBatchChannelData {
-        queue: VecDeque::new(),
-        packet_count: 0,
-        max_queued_batches,
-        sender_count: 1,
-    }));
+    let data = Arc::new(PacketBatchChannelData {
+        queue: ArrayQueue::new(max_queued_batches),
+        packet_count: AtomicUsize::new(0),
+        sender_count: AtomicUsize::new(1),
+    });
     let sender = BoundedPacketBatchSender {
         signal_sender: signal_sender.clone(),
         data: data.clone(),
@@ -441,7 +411,7 @@ mod test {
 
         drop(sender1);
 
-        match receiver.recv(12) {
+        match receiver.recv(10) {
             Ok((batches, packets)) => {
                 assert_eq!(batches.len(), 1);
                 assert_eq!(packets, 10);
@@ -449,7 +419,7 @@ mod test {
             Err(_err) => (),
         }
 
-        match receiver.recv(12) {
+        match receiver.recv(10) {
             Ok((batches, packets)) => {
                 assert_eq!(batches.len(), 1);
                 assert_eq!(packets, 10);
