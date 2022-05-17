@@ -4496,6 +4496,7 @@ dependencies = [
 name = "solana-cli"
 version = "1.11.0"
 dependencies = [
+ "base64 0.13.0",
  "bincode",
  "bs58",
  "clap 2.34.0",
@@ -4514,6 +4515,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "solana-account-decoder",
+ "solana-address-lookup-table-program",
  "solana-bpf-loader-program",
  "solana-clap-utils",
  "solana-cli-config",

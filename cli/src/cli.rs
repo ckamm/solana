@@ -411,6 +411,9 @@ pub enum CliCommand {
         derived_address_seed: Option<String>,
         derived_address_program_id: Option<Pubkey>,
     },
+    CustomSend {
+        blockhash_query: BlockhashQuery,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -780,7 +783,7 @@ pub fn parse_command(
             })
         }
         ("transfer", Some(matches)) => parse_transfer(matches, default_signer, wallet_manager),
-        //
+        ("custom-send", Some(matches)) => parse_custom_send(matches, default_signer, wallet_manager),
         ("", None) => {
             eprintln!("{}", matches.usage());
             Err(CliError::CommandNotRecognized(
@@ -1536,6 +1539,9 @@ pub fn process_command(config: &CliConfig) -> ProcessResult {
             derived_address_seed.clone(),
             derived_address_program_id.as_ref(),
         ),
+        CliCommand::CustomSend {
+            ref blockhash_query,
+        } => process_custom_send(rpc_client.clone(), config, blockhash_query,),
     }
 }
 

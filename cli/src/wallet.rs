@@ -213,6 +213,10 @@ impl WalletSubCommands for App<'_, '_> {
                 )
         )
         .subcommand(
+            SubCommand::with_name("custom-send")
+                .about("Send custom transactions")
+        )
+        .subcommand(
             SubCommand::with_name("transfer")
                 .about("Transfer funds between system accounts")
                 .alias("pay")
@@ -441,6 +445,20 @@ pub fn parse_transfer(
         },
         signers: signer_info.signers,
     })
+}
+
+pub fn parse_custom_send(
+    matches: &ArgMatches<'_>,
+    default_signer: &DefaultSigner,
+    wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
+) -> Result<CliCommandInfo, CliError> {
+    let blockhash_query = BlockhashQuery::new_from_matches(matches);
+    Ok(CliCommandInfo {
+            command: CliCommand::CustomSend {
+                blockhash_query,
+            },
+            signers: vec![default_signer.signer_from_path(matches, wallet_manager)?],
+        })
 }
 
 pub fn process_show_account(
@@ -761,4 +779,54 @@ pub fn process_transfer(
         };
         log_instruction_custom_error::<SystemError>(result, config)
     }
+}
+
+const MY_PAYER: [u8; 64] = [113,42,190,81,45,77,57,17,47,158,254,13,237,221,200,39,213,60,127,103,205,37,202,26,187,245,152,10,183,226,209,46,202,179,246,242,229,205,142,113,130,111,219,34,176,158,207,149,116,7,183,208,165,208,141,156,45,41,41,36,20,50,208,74];
+
+use std::str::FromStr;
+use solana_sdk::{signer::keypair::Keypair, signature::Signer};
+
+pub fn process_custom_send(
+    rpc_client: Arc<RpcClient>,
+    config: &CliConfig,
+    blockhash_query: &BlockhashQuery,
+) -> ProcessResult {
+    // this is what gets passed with -k
+    let command_line_signer = config.signers[0];
+
+    // use this to hard-code a signer
+    let payer = Keypair::from_bytes(&MY_PAYER).unwrap();
+
+    let to = Pubkey::from_str(&"AA1c3MhSBGXCJ5gorxdAki2moXmxpmAZQbVyrHJAqqz7").unwrap();
+
+    let tpu_client = solana_client::tpu_client::TpuClient::new(
+        rpc_client.clone(),
+        &config.websocket_url,
+        solana_client::tpu_client::TpuClientConfig::default(),
+    )?;
+
+    let ixs = vec![
+        solana_sdk::system_instruction::transfer(
+            &command_line_signer.pubkey(),
+            &to,
+            100,
+        ),
+    ];
+
+    let message = Message::new(&ixs, None);
+    println!("{:#?}", message);
+    let mut tx = Transaction::new_unsigned(message);
+
+    let recent_blockhash = blockhash_query.get_blockhash(&rpc_client, config.commitment)?;
+    tx.try_sign(&[command_line_signer], recent_blockhash)?;
+
+    let ser_tx = bincode::serialize(&tx).unwrap();
+
+    // send with jsonrpc
+    let result = rpc_client.send_and_confirm_transaction_with_spinner(&tx);
+
+    // send with tpu, no confirm
+    tpu_client.send_wire_transaction(ser_tx);
+
+    Ok("ok".into())
 }
