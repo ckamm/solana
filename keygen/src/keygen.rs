@@ -689,17 +689,30 @@ fn do_main(matches: &ArgMatches<'_>) -> Result<(), Box<dyn error::Error>> {
                     let grind_matches_thread_safe = grind_matches_thread_safe.clone();
                     let passphrase = passphrase.clone();
                     let passphrase_message = passphrase_message.clone();
+                    let mut buf = String::new();
+                    let mut rng = rand::rngs::OsRng::default();
 
-                    thread::spawn(move || loop {
+                    thread::spawn(move || {
+                    
+                        let mut rng = rand::thread_rng();
+                        use rand::SeedableRng;
+                        use rand::RngCore;
+                        let mut srng = rand::rngs::SmallRng::from_entropy();
+                        let mut keybuf = vec![0u8; 32];
+                        rng.fill_bytes(&mut keybuf);
+                        let mut j = 0;
+                        loop {
+                            j = (j + 1) % 32;
+                            keybuf[j] = keybuf[j].wrapping_add(1);
                         if done.load(Ordering::Relaxed) {
                             break;
                         }
                         let attempts = attempts.fetch_add(1, Ordering::Relaxed);
                         if attempts % 1_000_000 == 0 {
                             println!(
-                                "Searched {} keypairs in {}s. {} matches found.",
+                                "Searched {} keypairs in {}ms. {} matches found.",
                                 attempts,
-                                start.elapsed().as_secs(),
+                                start.elapsed().as_millis(),
                                 found.load(Ordering::Relaxed),
                             );
                         }
@@ -707,34 +720,29 @@ fn do_main(matches: &ArgMatches<'_>) -> Result<(), Box<dyn error::Error>> {
                             let mnemonic = Mnemonic::new(mnemonic_type, language);
                             let seed = Seed::new(&mnemonic, &passphrase);
                             (keypair_from_seed(seed.as_bytes()).unwrap(), mnemonic.phrase().to_string())
+                            //(1, mnemonic.phrase().to_string())
                         } else {
-                            (Keypair::new(), "".to_string())
+                            (Keypair::generate(&mut rng), "".to_string())
+                            //let secret = ed25519_dalek::SecretKey::from_bytes(&keybuf).unwrap();
+                            //let public: ed25519_dalek::PublicKey = (&secret).into();
+                            //bs58::encode(public.as_bytes()).into(&mut buf);
+                            //(1, "".to_string())
                         };
-                        let mut pubkey = bs58::encode(keypair.pubkey()).into_string();
-                        if ignore_case {
-                            pubkey = pubkey.to_lowercase();
-                        }
+                        bs58::encode(keypair.pubkey()).into(&mut buf);
+                        //println!("{}", &buf[0..3]);
+                        let mut pubkey = &mut buf;
+                        //if ignore_case {
+                        //    pubkey = pubkey.to_lowercase();
+                        //}
                         let mut total_matches_found = 0;
-                        for i in 0..grind_matches_thread_safe.len() {
-                            if grind_matches_thread_safe[i].count.load(Ordering::Relaxed) == 0 {
-                                total_matches_found += 1;
-                                continue;
-                            }
-                            if (!grind_matches_thread_safe[i].starts.is_empty()
-                                && grind_matches_thread_safe[i].ends.is_empty()
-                                && pubkey.starts_with(&grind_matches_thread_safe[i].starts))
-                                || (grind_matches_thread_safe[i].starts.is_empty()
-                                    && !grind_matches_thread_safe[i].ends.is_empty()
-                                    && pubkey.ends_with(&grind_matches_thread_safe[i].ends))
-                                || (!grind_matches_thread_safe[i].starts.is_empty()
-                                    && !grind_matches_thread_safe[i].ends.is_empty()
-                                    && pubkey.starts_with(&grind_matches_thread_safe[i].starts)
-                                    && pubkey.ends_with(&grind_matches_thread_safe[i].ends))
+                            if pubkey.starts_with(&"4Mang") || pubkey.starts_with(&"4mang") || pubkey.starts_with(&"Mango") || pubkey.starts_with(&"mango")
                             {
+                                //let mut bytes = keybuf.clone();
+                                //let secret = ed25519_dalek::SecretKey::from_bytes(&keybuf).unwrap();
+                                //let public: ed25519_dalek::PublicKey = (&secret).into();
+                                //bytes.extend(public.as_bytes());
+                                //let keypair = Keypair::from_bytes(&bytes).unwrap();
                                 let _found = found.fetch_add(1, Ordering::Relaxed);
-                                grind_matches_thread_safe[i]
-                                    .count
-                                    .fetch_sub(1, Ordering::Relaxed);
                                 if !no_outfile {
                                     write_keypair_file(&keypair, &format!("{}.json", keypair.pubkey()))
                                     .unwrap();
@@ -754,12 +762,11 @@ fn do_main(matches: &ArgMatches<'_>) -> Result<(), Box<dyn error::Error>> {
                                     );
                                 }
                             }
-                        }
                         if total_matches_found == grind_matches_thread_safe.len() {
                             done.store(true, Ordering::Relaxed);
                         }
+                        }})
                     })
-                })
                 .collect();
 
             for thread_handle in thread_handles {
