@@ -735,7 +735,7 @@ fn do_main(matches: &ArgMatches<'_>) -> Result<(), Box<dyn error::Error>> {
                         //    pubkey = pubkey.to_lowercase();
                         //}
                         let mut total_matches_found = 0;
-                            if pubkey.starts_with(&"4Mang") || pubkey.starts_with(&"4mang") || pubkey.starts_with(&"Mango") || pubkey.starts_with(&"mango")
+                            if &pubkey[1..6] == "Mango" || &pubkey[1..6] == "mango" || pubkey.starts_with(&"Mango") || pubkey.starts_with(&"mango")
                             {
                                 //let mut bytes = keybuf.clone();
                                 //let secret = ed25519_dalek::SecretKey::from_bytes(&keybuf).unwrap();
