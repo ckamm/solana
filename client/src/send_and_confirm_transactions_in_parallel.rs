@@ -125,7 +125,7 @@ fn create_transaction_confirmation_task(
                     .map(|x| *x.key())
                     .collect();
                 for signatures in
-                    transactions_to_verify.chunks(MAX_GET_SIGNATURE_STATUSES_QUERY_ITEMS)
+                    transactions_to_verify.chunks(50)
                 {
                     if let Ok(result) = rpc_client.get_signature_statuses(signatures).await {
                         let statuses = result.value;
@@ -230,7 +230,8 @@ async fn send_transaction_with_rpc_fallback(
                     context.error_map.insert(index, transaction_error.clone());
                 }
                 _ => {
-                    return Err(TpuSenderError::from(e));
+                    // fall through to retry
+                    // return Err(TpuSenderError::from(e));
                 }
             }
         }
@@ -285,6 +286,7 @@ async fn sign_all_messages_and_send<T: Signers + ?Sized>(
                     ),
                 );
             }
+            if counter < 500 {
             send_transaction_with_rpc_fallback(
                 rpc_client,
                 tpu_client,
@@ -294,6 +296,9 @@ async fn sign_all_messages_and_send<T: Signers + ?Sized>(
                 *index,
             )
             .await
+            } else {
+                Ok(())
+            }
         });
     }
     // collect to convert Vec<Result<_>> to Result<Vec<_>>

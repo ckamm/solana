@@ -2843,14 +2843,10 @@ fn send_deploy_messages(
                         solana_client::tpu_client::TpuClientConfig::default(),
                         cache,
                     );
-                    let tpu_client = rpc_client
-                        .runtime()
-                        .block_on(tpu_client_fut)
-                        .expect("Should return a valid tpu client");
 
                     send_and_confirm_transactions_in_parallel_blocking(
                         rpc_client.clone(),
-                        Some(tpu_client),
+                        None,
                         &write_messages,
                         &[fee_payer_signer, write_signer],
                         SendAndConfirmConfig {
